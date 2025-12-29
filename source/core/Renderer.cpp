@@ -378,10 +378,20 @@ TTF_Font* Renderer::getFont(int size, FontWeight weight) {
     
     // If custom font fails, try system font paths
     if (!font) {
-        // Try common font paths
+        // Try common font paths on Switch
+        // Nintendo Switch has fonts in various locations
         const char* fallbackPaths[] = {
+            // Standard shared font (most reliable)
+            "sdmc:/switch/fonts/NotoSansCJKsc-Regular.otf",
+            "sdmc:/switch/appstore/fonts/NotoSansCJKsc-Regular.otf",
+            // Atmosphere font override paths
+            "/atmosphere/contents/fonts/00.ttf",
+            "/atmosphere/contents/0100000000000811/romfs/nintendo_ext_003.bfttf",
+            // Try common homebrew font locations
+            "sdmc:/config/nx-hbmenu/fonts/font.ttf",
+            // romfs fonts (if user adds them)
             "romfs:/fonts/NotoSansCJK-Regular.ttc",
-            "/atmosphere/contents/fonts/NotoSansCJKsc-Regular.otf",
+            "romfs:/fonts/font.ttf",
             nullptr
         };
         
