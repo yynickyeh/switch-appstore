@@ -6,6 +6,7 @@
 #include "app.hpp"
 #include "core/Input.hpp"
 #include "ui/Theme.hpp"
+#include "ui/Router.hpp"
 #include <ctime>
 
 // =============================================================================
@@ -68,6 +69,32 @@ void TodayScreen::handleInput(const Input& input) {
     if (input.isPressed(Input::Button::DPadDown)) {
         m_selectedIndex = (m_selectedIndex < (int)m_featuredCards.size() - 1) 
                           ? m_selectedIndex + 1 : m_selectedIndex;
+    }
+    
+    // Handle L/R buttons to switch tabs (Apple HIG: quick tab switching)
+    Router* router = m_app->getRouter();
+    int currentTab = router->getCurrentTab();
+    if (input.isPressed(Input::Button::L)) {
+        if (currentTab > 0) {
+            router->switchTab(currentTab - 1);
+        }
+    }
+    if (input.isPressed(Input::Button::R)) {
+        if (currentTab < 4) {
+            router->switchTab(currentTab + 1);
+        }
+    }
+    
+    // Handle D-Pad left/right for tab switching too
+    if (input.isPressed(Input::Button::DPadLeft)) {
+        if (currentTab > 0) {
+            router->switchTab(currentTab - 1);
+        }
+    }
+    if (input.isPressed(Input::Button::DPadRight)) {
+        if (currentTab < 4) {
+            router->switchTab(currentTab + 1);
+        }
     }
     
     // Handle selection with A button
@@ -219,8 +246,8 @@ void TodayScreen::renderTabBar(Renderer& renderer) {
         float iconY = tabBarY + 12;
         float labelY = tabBarY + 48;
         
-        // Determine if this tab is selected
-        bool isSelected = (i == 0);  // Today is currently selected
+        // Determine if this tab is selected (use Router's current tab)
+        bool isSelected = (i == m_app->getRouter()->getCurrentTab());
         Color color = isSelected ? theme->primaryColor() : theme->textSecondaryColor();
         
         // Draw placeholder icon (circle for now)
@@ -277,13 +304,14 @@ void TodayScreen::renderLargeCard(Renderer& renderer, const FeaturedCard& card,
 // =============================================================================
 
 void TodayScreen::loadDemoContent() {
-    // Create demo featured cards
+    // Create demo featured cards with Apple-style vibrant colors
+    // Using brighter, more saturated colors like iOS App Store
     m_featuredCards.push_back({
         "GAME OF THE DAY",
         "塞尔达传说：旷野之息",
-        "探索广袤的海拉鲁大陆",
+        "探索广褱的海拉鲁大陆",
         "0100000000010000",
-        Color::fromHex(0x1B5E20)  // Dark green
+        Color::fromHex(0x34C759)  // Apple Green
     });
     
     m_featuredCards.push_back({
@@ -291,7 +319,7 @@ void TodayScreen::loadDemoContent() {
         "超级马力欧 奥德赛",
         "跨越世界的冒险之旅",
         "0100000000010001",
-        Color::fromHex(0xB71C1C)  // Deep red
+        Color::fromHex(0xFF3B30)  // Apple Red
     });
     
     m_featuredCards.push_back({
@@ -299,7 +327,7 @@ void TodayScreen::loadDemoContent() {
         "宝可梦 朱/紫",
         "全新开放世界宝可梦冒险",
         "0100000000010002",
-        Color::fromHex(0x4A148C)  // Deep purple
+        Color::fromHex(0xAF52DE)  // Apple Purple
     });
     
     m_featuredCards.push_back({
@@ -307,7 +335,7 @@ void TodayScreen::loadDemoContent() {
         "动物森友会",
         "打造你的理想岛屿生活",
         "0100000000010003",
-        Color::fromHex(0x00695C)  // Teal
+        Color::fromHex(0x5AC8FA)  // Apple Light Blue
     });
     
     // Calculate max scroll
