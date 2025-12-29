@@ -38,18 +38,23 @@ public:
     };
     
     // -------------------------------------------------------------------------
-    // Touch state
+    // Touch state - Enhanced for better UX
     // -------------------------------------------------------------------------
     struct TouchState {
-        bool touching = false;
-        float x = 0.0f;
-        float y = 0.0f;
-        float startX = 0.0f;
-        float startY = 0.0f;
-        float deltaX = 0.0f;
-        float deltaY = 0.0f;
-        bool justTouched = false;
-        bool justReleased = false;
+        bool touching = false;      // Currently touching
+        float x = 0.0f;             // Current X position
+        float y = 0.0f;             // Current Y position
+        float startX = 0.0f;        // Where touch started
+        float startY = 0.0f;        // Where touch started
+        float deltaX = 0.0f;        // Movement this frame
+        float deltaY = 0.0f;        // Movement this frame
+        float velocityX = 0.0f;     // Velocity (for momentum scrolling)
+        float velocityY = 0.0f;     // Velocity (for momentum scrolling)
+        bool justTouched = false;   // Touch started this frame
+        bool justReleased = false;  // Touch ended this frame
+        bool isTap = false;         // Was this a tap (quick touch without much movement)
+        float totalMovement = 0.0f; // Total distance moved during this touch
+        float duration = 0.0f;      // How long touch has been held
     };
     
     // -------------------------------------------------------------------------

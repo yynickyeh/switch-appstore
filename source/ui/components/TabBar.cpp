@@ -65,8 +65,9 @@ bool TabBar::handleInput(const Input& input) {
     }
     
     // Touch input for direct tab selection
+    // Using isTap for more accurate tap detection (not swipes)
     const auto& touch = input.getTouch();
-    if (touch.justReleased) {
+    if (touch.isTap) {
         int hitIndex = hitTestTabs(touch.x, touch.y);
         if (hitIndex >= 0 && hitIndex != m_selectedIndex) {
             setSelectedIndex(hitIndex);

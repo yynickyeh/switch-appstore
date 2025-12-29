@@ -27,11 +27,11 @@ void Router::init(App* app) {
     // Create the TabBar component
     m_tabBar = std::make_unique<TabBar>(app);
     
-    // Configure tabs (iOS App Store style)
+    // Configure tabs (Switch homebrew store style)
     m_tabBar->addTab("today", "Today");
     m_tabBar->addTab("games", "游戏");
-    m_tabBar->addTab("apps", "Apps");
-    m_tabBar->addTab("arcade", "Arcade");
+    m_tabBar->addTab("tools", "工具");
+    m_tabBar->addTab("emulators", "模拟器");
     m_tabBar->addTab("search", "搜索");
     
     // Set callback to switch tabs

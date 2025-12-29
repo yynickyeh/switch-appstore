@@ -55,6 +55,13 @@ void Input::update() {
     hidGetTouchScreenStates(&touchState, 1);
     
     bool wasTouching = m_touch.touching;
+    float prevX = m_touch.x;
+    float prevY = m_touch.y;
+    
+    // Constants for tap detection
+    constexpr float TAP_MAX_MOVEMENT = 30.0f;   // Max pixels moved for a tap
+    constexpr float TAP_MAX_DURATION = 0.3f;    // Max seconds for a tap
+    constexpr float VELOCITY_SMOOTHING = 0.3f;  // Smoothing factor for velocity
     
     if (touchState.count > 0) {
         float newX = static_cast<float>(touchState.touches[0].x);
@@ -65,24 +72,52 @@ void Input::update() {
             m_touch.justTouched = true;
             m_touch.startX = newX;
             m_touch.startY = newY;
+            m_touch.totalMovement = 0.0f;
+            m_touch.duration = 0.0f;
+            m_touch.velocityX = 0.0f;
+            m_touch.velocityY = 0.0f;
         } else {
             m_touch.justTouched = false;
         }
         
         // Calculate delta from last position
-        m_touch.deltaX = newX - m_touch.x;
-        m_touch.deltaY = newY - m_touch.y;
+        m_touch.deltaX = newX - prevX;
+        m_touch.deltaY = newY - prevY;
+        
+        // Track total movement (for tap detection)
+        float frameDist = std::sqrt(m_touch.deltaX * m_touch.deltaX + 
+                                    m_touch.deltaY * m_touch.deltaY);
+        m_touch.totalMovement += frameDist;
+        
+        // Calculate smoothed velocity (for momentum scrolling)
+        // Using exponential smoothing
+        m_touch.velocityX = VELOCITY_SMOOTHING * m_touch.deltaX + 
+                            (1.0f - VELOCITY_SMOOTHING) * m_touch.velocityX;
+        m_touch.velocityY = VELOCITY_SMOOTHING * m_touch.deltaY + 
+                            (1.0f - VELOCITY_SMOOTHING) * m_touch.velocityY;
+        
+        // Increase duration (assuming 60fps, ~16.67ms per frame)
+        m_touch.duration += 0.0167f;
         
         m_touch.x = newX;
         m_touch.y = newY;
         m_touch.touching = true;
         m_touch.justReleased = false;
+        m_touch.isTap = false;
     } else {
         m_touch.touching = false;
         m_touch.justTouched = false;
         m_touch.justReleased = wasTouching;
+        
+        // Determine if this was a tap
+        if (wasTouching) {
+            m_touch.isTap = (m_touch.totalMovement < TAP_MAX_MOVEMENT && 
+                             m_touch.duration < TAP_MAX_DURATION);
+        }
+        
         m_touch.deltaX = 0.0f;
         m_touch.deltaY = 0.0f;
+        // Keep velocity for momentum scrolling
     }
 }
 
