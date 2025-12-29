@@ -49,75 +49,95 @@ void Input::update() {
     m_rightStick.y = applyDeadzone(static_cast<float>(rightStick.y) / JOYSTICK_MAX);
     
     // -------------------------------------------------------------------------
-    // Update touch state
+    // Update touch state using SDL events (more responsive than polling)
+    // This approach is used by borealis library for better touch handling
     // -------------------------------------------------------------------------
-    HidTouchScreenState touchState = {0};
-    hidGetTouchScreenStates(&touchState, 1);
     
+    // Save previous state
     bool wasTouching = m_touch.touching;
     float prevX = m_touch.x;
     float prevY = m_touch.y;
     
-    // Constants for tap detection - relaxed for better usability
-    constexpr float TAP_MAX_MOVEMENT = 50.0f;   // Max pixels moved for a tap (relaxed)
-    constexpr float TAP_MAX_DURATION = 0.5f;    // Max seconds for a tap (relaxed)
-    constexpr float VELOCITY_SMOOTHING = 0.3f;  // Smoothing factor for velocity
+    // Reset per-frame flags
+    m_touch.justTouched = false;
+    m_touch.justReleased = false;
+    m_touch.isTap = false;
+    m_touch.deltaX = 0.0f;
+    m_touch.deltaY = 0.0f;
     
-    if (touchState.count > 0) {
-        float newX = static_cast<float>(touchState.touches[0].x);
-        float newY = static_cast<float>(touchState.touches[0].y);
+    // Process SDL events for touch input
+    SDL_Event event;
+    while (SDL_PeepEvents(&event, 1, SDL_GETEVENT, SDL_FINGERDOWN, SDL_FINGERMOTION) > 0) {
+        // Get screen dimensions for coordinate conversion
+        float screenW = 1280.0f;
+        float screenH = 720.0f;
         
-        if (!m_touch.touching) {
-            // Just started touching
-            m_touch.justTouched = true;
-            m_touch.startX = newX;
-            m_touch.startY = newY;
-            m_touch.totalMovement = 0.0f;
-            m_touch.duration = 0.0f;
-            m_touch.velocityX = 0.0f;
-            m_touch.velocityY = 0.0f;
-        } else {
-            m_touch.justTouched = false;
+        switch (event.type) {
+            case SDL_FINGERDOWN: {
+                // Convert normalized coordinates (0-1) to screen coordinates
+                float newX = event.tfinger.x * screenW;
+                float newY = event.tfinger.y * screenH;
+                
+                m_touch.touching = true;
+                m_touch.justTouched = true;
+                m_touch.startX = newX;
+                m_touch.startY = newY;
+                m_touch.x = newX;
+                m_touch.y = newY;
+                m_touch.totalMovement = 0.0f;
+                m_touch.duration = 0.0f;
+                m_touch.velocityX = 0.0f;
+                m_touch.velocityY = 0.0f;
+                break;
+            }
+            
+            case SDL_FINGERUP: {
+                float newX = event.tfinger.x * screenW;
+                float newY = event.tfinger.y * screenH;
+                
+                m_touch.x = newX;
+                m_touch.y = newY;
+                m_touch.touching = false;
+                m_touch.justReleased = true;
+                
+                // Determine if this was a tap
+                constexpr float TAP_MAX_MOVEMENT = 50.0f;
+                constexpr float TAP_MAX_DURATION = 0.5f;
+                m_touch.isTap = (m_touch.totalMovement < TAP_MAX_MOVEMENT && 
+                                 m_touch.duration < TAP_MAX_DURATION);
+                break;
+            }
+            
+            case SDL_FINGERMOTION: {
+                float newX = event.tfinger.x * screenW;
+                float newY = event.tfinger.y * screenH;
+                
+                // Calculate delta (SDL provides dx/dy but we can also calculate)
+                m_touch.deltaX = newX - m_touch.x;
+                m_touch.deltaY = newY - m_touch.y;
+                
+                // Track total movement
+                float frameDist = std::sqrt(m_touch.deltaX * m_touch.deltaX + 
+                                           m_touch.deltaY * m_touch.deltaY);
+                m_touch.totalMovement += frameDist;
+                
+                // Smoothed velocity for momentum scrolling
+                constexpr float VELOCITY_SMOOTHING = 0.4f;
+                m_touch.velocityX = VELOCITY_SMOOTHING * m_touch.deltaX + 
+                                    (1.0f - VELOCITY_SMOOTHING) * m_touch.velocityX;
+                m_touch.velocityY = VELOCITY_SMOOTHING * m_touch.deltaY + 
+                                    (1.0f - VELOCITY_SMOOTHING) * m_touch.velocityY;
+                
+                m_touch.x = newX;
+                m_touch.y = newY;
+                break;
+            }
         }
-        
-        // Calculate delta from last position
-        m_touch.deltaX = newX - prevX;
-        m_touch.deltaY = newY - prevY;
-        
-        // Track total movement (for tap detection)
-        float frameDist = std::sqrt(m_touch.deltaX * m_touch.deltaX + 
-                                    m_touch.deltaY * m_touch.deltaY);
-        m_touch.totalMovement += frameDist;
-        
-        // Calculate smoothed velocity (for momentum scrolling)
-        // Using exponential smoothing
-        m_touch.velocityX = VELOCITY_SMOOTHING * m_touch.deltaX + 
-                            (1.0f - VELOCITY_SMOOTHING) * m_touch.velocityX;
-        m_touch.velocityY = VELOCITY_SMOOTHING * m_touch.deltaY + 
-                            (1.0f - VELOCITY_SMOOTHING) * m_touch.velocityY;
-        
-        // Increase duration (assuming 60fps, ~16.67ms per frame)
-        m_touch.duration += 0.0167f;
-        
-        m_touch.x = newX;
-        m_touch.y = newY;
-        m_touch.touching = true;
-        m_touch.justReleased = false;
-        m_touch.isTap = false;
-    } else {
-        m_touch.touching = false;
-        m_touch.justTouched = false;
-        m_touch.justReleased = wasTouching;
-        
-        // Determine if this was a tap
-        if (wasTouching) {
-            m_touch.isTap = (m_touch.totalMovement < TAP_MAX_MOVEMENT && 
-                             m_touch.duration < TAP_MAX_DURATION);
-        }
-        
-        m_touch.deltaX = 0.0f;
-        m_touch.deltaY = 0.0f;
-        // Keep velocity for momentum scrolling
+    }
+    
+    // Update duration if touching
+    if (m_touch.touching) {
+        m_touch.duration += 0.0167f;  // ~60fps
     }
 }
 
