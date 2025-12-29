@@ -132,6 +132,7 @@ void GamesScreen::update(float deltaTime) {
 
 void GamesScreen::render(Renderer& renderer) {
     Theme* theme = m_app->getTheme();
+    (void)theme;  // Used in child methods
     
     float contentY = HEADER_HEIGHT - m_scrollY;
     

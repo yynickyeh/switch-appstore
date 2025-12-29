@@ -151,7 +151,7 @@ void TodayScreen::update(float deltaTime) {
 
 void TodayScreen::render(Renderer& renderer) {
     Theme* theme = m_app->getTheme();
-    float scale = m_app->getScale();
+    (void)theme;  // May be used later for theme colors
     
     // Screen dimensions
     float screenWidth = 1280.0f;  // Base width (720p)
@@ -310,14 +310,14 @@ void TodayScreen::renderLargeCard(Renderer& renderer, const FeaturedCard& card,
 // =============================================================================
 
 void TodayScreen::loadDemoContent() {
-    // Create demo featured cards with Apple-style vibrant colors
-    // Using brighter, more saturated colors like iOS App Store
+    // Create demo featured cards with Apple-style gradient-inspired colors
+    // Using vibrant, modern colors like iOS App Store featured cards
     m_featuredCards.push_back({
         "GAME OF THE DAY",
         "塞尔达传说：旷野之息",
-        "探索广褱的海拉鲁大陆",
+        "探索广袤的海拉鲁大陆",
         "0100000000010000",
-        Color::fromHex(0x34C759)  // Apple Green
+        Color::fromHex(0x1DB954)  // Spotify Green - vibrant
     });
     
     m_featuredCards.push_back({
@@ -325,7 +325,7 @@ void TodayScreen::loadDemoContent() {
         "超级马力欧 奥德赛",
         "跨越世界的冒险之旅",
         "0100000000010001",
-        Color::fromHex(0xFF3B30)  // Apple Red
+        Color::fromHex(0xE63946)  // Modern Red
     });
     
     m_featuredCards.push_back({
@@ -333,7 +333,7 @@ void TodayScreen::loadDemoContent() {
         "宝可梦 朱/紫",
         "全新开放世界宝可梦冒险",
         "0100000000010002",
-        Color::fromHex(0xAF52DE)  // Apple Purple
+        Color::fromHex(0x7C3AED)  // Vivid Purple
     });
     
     m_featuredCards.push_back({
@@ -341,7 +341,7 @@ void TodayScreen::loadDemoContent() {
         "动物森友会",
         "打造你的理想岛屿生活",
         "0100000000010003",
-        Color::fromHex(0x5AC8FA)  // Apple Light Blue
+        Color::fromHex(0x0EA5E9)  // Sky Blue
     });
     
     // Calculate max scroll
