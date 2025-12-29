@@ -6,6 +6,8 @@
 #include "screens/Screen.hpp"
 #include "core/Renderer.hpp"
 #include "core/Input.hpp"
+#include "components/TabBar.hpp"
+#include "app.hpp"
 
 // =============================================================================
 // Constructor & Destructor
@@ -14,6 +16,29 @@
 Router::Router() = default;
 
 Router::~Router() = default;
+
+// =============================================================================
+// Initialization
+// =============================================================================
+
+void Router::init(App* app) {
+    m_app = app;
+    
+    // Create the TabBar component
+    m_tabBar = std::make_unique<TabBar>(app);
+    
+    // Configure tabs (iOS App Store style)
+    m_tabBar->addTab("today", "Today");
+    m_tabBar->addTab("games", "游戏");
+    m_tabBar->addTab("apps", "Apps");
+    m_tabBar->addTab("arcade", "Arcade");
+    m_tabBar->addTab("search", "搜索");
+    
+    // Set callback to switch tabs
+    m_tabBar->setOnTabChange([this](int oldIndex, int newIndex) {
+        switchTab(newIndex);
+    });
+}
 
 // =============================================================================
 // Screen Management
@@ -110,6 +135,11 @@ void Router::handleInput(const Input& input) {
     // Don't process input during transitions
     if (m_transitioning) return;
     
+    // Let TabBar handle input first (L/R buttons, touch)
+    if (m_tabBar && m_tabBar->handleInput(input)) {
+        return;  // TabBar consumed the input
+    }
+    
     // Handle back button (B) for screen stack
     if (input.isPressed(Input::Button::B)) {
         if (m_screens.size() > 1) {
@@ -183,6 +213,11 @@ void Router::render(Renderer& renderer) {
             if (m_tabScreens[m_currentTab]) {
                 m_tabScreens[m_currentTab]->render(renderer);
             }
+        }
+        
+        // ALWAYS render TabBar on top of screen content
+        if (m_tabBar) {
+            m_tabBar->render(renderer);
         }
         return;
     }

@@ -14,6 +14,8 @@
 class Screen;
 class Renderer;
 class Input;
+class App;
+class TabBar;
 
 // =============================================================================
 // Router - Screen navigation and transition manager
@@ -22,6 +24,13 @@ class Router {
 public:
     Router();
     ~Router();
+    
+    // -------------------------------------------------------------------------
+    // Initialization
+    // -------------------------------------------------------------------------
+    
+    // Initialize the router with a reference to the app
+    void init(App* app);
     
     // -------------------------------------------------------------------------
     // Screen management
@@ -58,6 +67,9 @@ public:
     // Get current tab index
     int getCurrentTab() const { return m_currentTab; }
     
+    // Get the TabBar component
+    TabBar* getTabBar() const { return m_tabBar.get(); }
+    
     // -------------------------------------------------------------------------
     // Update and render
     // -------------------------------------------------------------------------
@@ -73,12 +85,18 @@ public:
     void onResolutionChanged(int width, int height, float scale);
     
 private:
+    // App reference
+    App* m_app = nullptr;
+    
     // Screen stack
     std::vector<std::unique_ptr<Screen>> m_screens;
     
     // Tab navigation
     int m_currentTab = 0;
     std::vector<std::unique_ptr<Screen>> m_tabScreens;
+    
+    // TabBar component (owned by Router)
+    std::unique_ptr<TabBar> m_tabBar;
     
     // Transition animation state
     bool m_transitioning = false;
@@ -89,3 +107,4 @@ private:
     // Pending screen for transitions
     std::unique_ptr<Screen> m_pendingScreen;
 };
+

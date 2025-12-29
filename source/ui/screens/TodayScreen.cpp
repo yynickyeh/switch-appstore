@@ -189,7 +189,7 @@ void TodayScreen::render(Renderer& renderer) {
     // -------------------------------------------------------------------------
     
     renderHeader(renderer);
-    renderTabBar(renderer);
+    // Note: TabBar is now rendered by Router, not by individual screens
 }
 
 // =============================================================================

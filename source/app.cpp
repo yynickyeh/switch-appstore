@@ -133,6 +133,9 @@ bool App::init() {
     // Create router and set up tab screens (like iOS App Store)
     m_router = std::make_unique<Router>();
     
+    // Initialize router (creates TabBar component)
+    m_router->init(this);
+    
     // Add all 5 tab screens
     // Tab 0: Today
     m_router->addTabScreen(std::make_unique<TodayScreen>(this));

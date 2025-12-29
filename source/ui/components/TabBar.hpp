@@ -1,90 +1,128 @@
 // =============================================================================
 // Switch App Store - TabBar Component
 // =============================================================================
-// Bottom tab navigation bar (like iOS App Store)
-// Shows icons with labels for main app sections
+// iOS-style bottom navigation bar with proper encapsulation
+// Designed to be rendered at the App/Router level, independent of Screens
 // =============================================================================
 
 #pragma once
 
-#include "ui/Component.hpp"
-#include <vector>
+#include "core/Renderer.hpp"
 #include <string>
+#include <vector>
+#include <functional>
+
+// Forward declarations
+class App;
+class Input;
 
 // =============================================================================
-// Tab item data
+// TabItem - Single tab entry
 // =============================================================================
 struct TabItem {
+    std::string id;
     std::string label;
-    // SDL_Texture* icon = nullptr;
-    // SDL_Texture* iconSelected = nullptr;
+    std::string iconName;  // For future icon support
 };
 
 // =============================================================================
-// TabBar - Bottom navigation bar
+// TabBar - Bottom navigation component
 // =============================================================================
-class TabBar : public Component {
+// This component follows Apple Human Interface Guidelines:
+// - Fixed at bottom of screen
+// - 5 tabs max (iOS standard)
+// - Selected state clearly indicated
+// - Touch targets at least 44x44 points
+// =============================================================================
+class TabBar {
 public:
     // -------------------------------------------------------------------------
     // Constructor
     // -------------------------------------------------------------------------
-    TabBar();
-    
-    // -------------------------------------------------------------------------
-    // Component overrides
-    // -------------------------------------------------------------------------
-    void handleInput(const Input& input) override;
-    void render(Renderer& renderer, Theme& theme) override;
-    
-    // TabBar can receive focus for controller navigation
-    bool canFocus() const override { return true; }
+    explicit TabBar(App* app);
+    ~TabBar() = default;
     
     // -------------------------------------------------------------------------
     // Tab management
     // -------------------------------------------------------------------------
     
-    // Add a tab
-    void addTab(const std::string& label);
+    // Add a tab (call during initialization)
+    void addTab(const std::string& id, const std::string& label, 
+                const std::string& iconName = "");
     
-    // Get/set selected tab
+    // Get/set selected tab index
     int getSelectedIndex() const { return m_selectedIndex; }
     void setSelectedIndex(int index);
     
-    // Tab count
-    int getTabCount() const { return static_cast<int>(m_tabs.size()); }
+    // Get tab count
+    size_t getTabCount() const { return m_tabs.size(); }
     
     // -------------------------------------------------------------------------
     // Callbacks
     // -------------------------------------------------------------------------
     
-    using TabCallback = std::function<void(int)>;
-    void setOnTabChanged(TabCallback callback) { m_onTabChanged = callback; }
+    using TabChangeCallback = std::function<void(int oldIndex, int newIndex)>;
+    void setOnTabChange(TabChangeCallback callback) { m_onTabChange = callback; }
     
     // -------------------------------------------------------------------------
-    // Styling
+    // Input handling
     // -------------------------------------------------------------------------
     
-    // Height (default 70 for 720p)
-    void setHeight(float height) { m_bounds.h = height; }
+    // Handle input for tab switching
+    // Returns true if input was consumed
+    bool handleInput(const Input& input);
     
-    // Icon size (default 28 for 720p)
-    void setIconSize(float size) { m_iconSize = size; }
+    // -------------------------------------------------------------------------
+    // Rendering
+    // -------------------------------------------------------------------------
     
-    // Font size for labels
-    void setFontSize(int size) { m_fontSize = size; }
+    // Render the tab bar
+    // Should be called AFTER screen rendering to appear on top
+    void render(Renderer& renderer);
+    
+    // -------------------------------------------------------------------------
+    // Layout constants (based on iOS HIG)
+    // -------------------------------------------------------------------------
+    static constexpr float HEIGHT = 70.0f;           // Tab bar height
+    static constexpr float SAFE_AREA_BOTTOM = 0.0f;  // Safe area for notch devices
+    
+    // Get the usable screen height (accounting for tab bar)
+    static float getContentHeight(float screenHeight) {
+        return screenHeight - HEIGHT - SAFE_AREA_BOTTOM;
+    }
     
 private:
+    // -------------------------------------------------------------------------
+    // Private methods
+    // -------------------------------------------------------------------------
+    
+    void renderBackground(Renderer& renderer);
+    void renderTabs(Renderer& renderer);
+    void renderTab(Renderer& renderer, const TabItem& tab, float x, float y,
+                   float width, bool isSelected);
+    
+    // -------------------------------------------------------------------------
+    // Touch handling
+    // -------------------------------------------------------------------------
+    
+    int hitTestTabs(float touchX, float touchY) const;
+    
+    // -------------------------------------------------------------------------
+    // Private members
+    // -------------------------------------------------------------------------
+    
+    App* m_app;
     std::vector<TabItem> m_tabs;
     int m_selectedIndex = 0;
     
-    // Styling
-    float m_iconSize = 28.0f;
-    int m_fontSize = 12;
+    // Animation
+    float m_selectionAnimProgress = 0.0f;
+    int m_previousIndex = 0;
     
     // Callbacks
-    TabCallback m_onTabChanged;
+    TabChangeCallback m_onTabChange;
     
-    // Animation
-    float m_transitionProgress = 0.0f;
-    int m_previousIndex = 0;
+    // Layout cache
+    float m_screenWidth = 1280.0f;
+    float m_screenHeight = 720.0f;
 };

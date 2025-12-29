@@ -1,37 +1,46 @@
 // =============================================================================
-// Switch App Store - TabBar Implementation
+// Switch App Store - TabBar Component Implementation
 // =============================================================================
 
 #include "TabBar.hpp"
+#include "app.hpp"
+#include "core/Input.hpp"
 #include "ui/Theme.hpp"
+#include "ui/Router.hpp"
 
 // =============================================================================
 // Constructor
 // =============================================================================
 
-TabBar::TabBar() {
-    m_bounds.h = 70.0f;  // Default height for 720p
+TabBar::TabBar(App* app) 
+    : m_app(app) 
+{
 }
 
 // =============================================================================
 // Tab Management
 // =============================================================================
 
-void TabBar::addTab(const std::string& label) {
-    TabItem item;
-    item.label = label;
-    m_tabs.push_back(item);
+void TabBar::addTab(const std::string& id, const std::string& label,
+                    const std::string& iconName) {
+    TabItem tab;
+    tab.id = id;
+    tab.label = label;
+    tab.iconName = iconName;
+    m_tabs.push_back(tab);
 }
 
 void TabBar::setSelectedIndex(int index) {
-    if (index >= 0 && index < static_cast<int>(m_tabs.size()) && index != m_selectedIndex) {
-        m_previousIndex = m_selectedIndex;
-        m_selectedIndex = index;
-        m_transitionProgress = 0.0f;
-        
-        if (m_onTabChanged) {
-            m_onTabChanged(index);
-        }
+    if (index < 0 || index >= static_cast<int>(m_tabs.size())) return;
+    if (index == m_selectedIndex) return;
+    
+    int oldIndex = m_selectedIndex;
+    m_previousIndex = m_selectedIndex;
+    m_selectedIndex = index;
+    m_selectionAnimProgress = 0.0f;
+    
+    if (m_onTabChange) {
+        m_onTabChange(oldIndex, index);
     }
 }
 
@@ -39,90 +48,129 @@ void TabBar::setSelectedIndex(int index) {
 // Input Handling
 // =============================================================================
 
-void TabBar::handleInput(const Input& input) {
-    // Touch handling
-    const auto& touch = input.getTouch();
-    if (touch.justReleased && containsPoint(touch.x, touch.y)) {
-        // Determine which tab was touched
-        float tabWidth = m_bounds.w / m_tabs.size();
-        int touchedIndex = static_cast<int>((touch.x - m_bounds.x) / tabWidth);
-        if (touchedIndex >= 0 && touchedIndex < static_cast<int>(m_tabs.size())) {
-            setSelectedIndex(touchedIndex);
-        }
-    }
-    
-    // Controller navigation (L/R to switch tabs)
+bool TabBar::handleInput(const Input& input) {
+    // L/R shoulder buttons for quick tab switching (Apple HIG pattern)
     if (input.isPressed(Input::Button::L)) {
         if (m_selectedIndex > 0) {
             setSelectedIndex(m_selectedIndex - 1);
+            return true;
         }
     }
+    
     if (input.isPressed(Input::Button::R)) {
         if (m_selectedIndex < static_cast<int>(m_tabs.size()) - 1) {
             setSelectedIndex(m_selectedIndex + 1);
+            return true;
         }
     }
+    
+    // Touch input for direct tab selection
+    const auto& touch = input.getTouch();
+    if (touch.justReleased) {
+        int hitIndex = hitTestTabs(touch.x, touch.y);
+        if (hitIndex >= 0 && hitIndex != m_selectedIndex) {
+            setSelectedIndex(hitIndex);
+            return true;
+        }
+    }
+    
+    return false;
+}
+
+int TabBar::hitTestTabs(float touchX, float touchY) const {
+    if (m_tabs.empty()) return -1;
+    
+    float tabBarY = m_screenHeight - HEIGHT;
+    
+    // Check if touch is within tab bar vertical bounds
+    if (touchY < tabBarY || touchY > m_screenHeight) {
+        return -1;
+    }
+    
+    // Calculate which tab was touched
+    float tabWidth = m_screenWidth / m_tabs.size();
+    int index = static_cast<int>(touchX / tabWidth);
+    
+    if (index >= 0 && index < static_cast<int>(m_tabs.size())) {
+        return index;
+    }
+    
+    return -1;
 }
 
 // =============================================================================
 // Rendering
 // =============================================================================
 
-void TabBar::render(Renderer& renderer, Theme& theme) {
-    if (!m_visible || m_tabs.empty()) return;
+void TabBar::render(Renderer& renderer) {
+    if (m_tabs.empty()) return;
     
-    // Draw background (semi-transparent blur effect simulation)
-    Color bgColor = theme.getColor("tab_bar_bg");
-    renderer.drawRect(m_bounds, bgColor);
+    renderBackground(renderer);
+    renderTabs(renderer);
+}
+
+void TabBar::renderBackground(Renderer& renderer) {
+    Theme* theme = m_app->getTheme();
     
-    // Draw top separator line
-    Color sepColor = theme.separatorColor();
-    renderer.drawLine(m_bounds.x, m_bounds.y, 
-                      m_bounds.x + m_bounds.w, m_bounds.y, 
-                      sepColor, 1);
+    float tabBarY = m_screenHeight - HEIGHT;
     
-    // Calculate tab dimensions
-    float tabWidth = m_bounds.w / m_tabs.size();
+    // Background with blur effect simulation (semi-transparent)
+    // Using the theme's tab bar background color
+    renderer.drawRect(
+        Rect(0, tabBarY, m_screenWidth, HEIGHT),
+        theme->getColor("tab_bar_bg")
+    );
     
-    // Draw each tab
+    // Top separator line (1px, subtle)
+    renderer.drawLine(0, tabBarY, m_screenWidth, tabBarY, 
+                     theme->separatorColor(), 1);
+}
+
+void TabBar::renderTabs(Renderer& renderer) {
+    if (m_tabs.empty()) return;
+    
+    float tabWidth = m_screenWidth / m_tabs.size();
+    float tabBarY = m_screenHeight - HEIGHT;
+    
     for (size_t i = 0; i < m_tabs.size(); i++) {
-        float tabX = m_bounds.x + i * tabWidth;
-        float tabCenterX = tabX + tabWidth / 2;
-        
+        float tabX = i * tabWidth;
         bool isSelected = (static_cast<int>(i) == m_selectedIndex);
         
-        // Get color based on selection state
-        Color iconColor, textColor;
-        if (isSelected) {
-            iconColor = theme.primaryColor();
-            textColor = theme.primaryColor();
-        } else {
-            iconColor = theme.textSecondaryColor();
-            textColor = theme.textSecondaryColor();
-        }
-        
-        // Draw placeholder icon (circle for now)
-        float iconY = m_bounds.y + 12;
-        renderer.drawCircle(tabCenterX, iconY + m_iconSize / 2, m_iconSize / 2, iconColor);
-        
-        // Draw label
-        float labelY = m_bounds.y + 12 + m_iconSize + 6;
-        renderer.drawText(
-            m_tabs[i].label,
-            tabCenterX,
-            labelY,
-            m_fontSize,
-            textColor,
-            FontWeight::Regular,
-            TextAlign::Center
-        );
+        renderTab(renderer, m_tabs[i], tabX, tabBarY, tabWidth, isSelected);
+    }
+}
+
+void TabBar::renderTab(Renderer& renderer, const TabItem& tab, float x, float y,
+                        float width, bool isSelected) {
+    Theme* theme = m_app->getTheme();
+    
+    // Calculate center position
+    float centerX = x + width / 2.0f;
+    
+    // Icon area (top portion of tab)
+    float iconY = y + 12.0f;
+    float iconSize = 28.0f;
+    
+    // Determine color based on selection state
+    Color color = isSelected ? theme->primaryColor() : theme->textSecondaryColor();
+    
+    // Draw placeholder icon (circle for now)
+    // In production, would load actual SF Symbols or custom icons
+    renderer.drawCircle(centerX, iconY + iconSize / 2.0f, iconSize / 2.0f, color);
+    
+    // Icon inner detail (simulating icon shape)
+    if (isSelected) {
+        renderer.drawCircle(centerX, iconY + iconSize / 2.0f, iconSize / 4.0f, 
+                           theme->getColor("tab_bar_bg"));
     }
     
-    // Draw focus indicator if focused
-    if (m_focused) {
-        float focusX = m_bounds.x + m_selectedIndex * tabWidth;
-        Color focusColor = theme.primaryColor();
-        focusColor.a = 60;
-        renderer.drawRect(Rect(focusX, m_bounds.y, tabWidth, m_bounds.h), focusColor);
+    // Label text
+    float labelY = y + 48.0f;
+    renderer.drawText(tab.label, centerX, labelY, 11, color,
+                     FontWeight::Regular, TextAlign::Center);
+    
+    // Selection indicator dot (subtle, below icon for visual enhancement)
+    if (isSelected) {
+        renderer.drawCircle(centerX, y + 8.0f, 2.0f, theme->primaryColor());
     }
 }
