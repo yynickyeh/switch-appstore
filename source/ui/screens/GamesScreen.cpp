@@ -89,10 +89,15 @@ void GamesScreen::handleInput(const Input& input) {
         // TODO: Navigate to DetailScreen
     }
     
-    // Touch scrolling
+    // Touch scrolling - direct 1:1 mapping for responsiveness
     const auto& touch = input.getTouch();
     if (touch.touching) {
-        m_scrollVelocity = -touch.deltaY;
+        // Direct scroll with touch delta
+        m_scrollY -= touch.deltaY;  // Direct 1:1 scroll
+        m_scrollVelocity = 0.0f;    // Stop inertia while touching
+    } else if (touch.justReleased) {
+        // Apply momentum from touch velocity
+        m_scrollVelocity = -touch.velocityY * 30.0f;
     }
 }
 
@@ -101,12 +106,12 @@ void GamesScreen::handleInput(const Input& input) {
 // =============================================================================
 
 void GamesScreen::update(float deltaTime) {
-    // Apply scroll velocity
+    // Apply scroll velocity (momentum scrolling)
     if (m_scrollVelocity != 0.0f) {
         m_scrollY += m_scrollVelocity * deltaTime;
-        m_scrollVelocity *= 0.95f;
+        m_scrollVelocity *= 0.92f;  // Smoother friction
         
-        if (std::abs(m_scrollVelocity) < 0.5f) {
+        if (std::abs(m_scrollVelocity) < 1.0f) {
             m_scrollVelocity = 0.0f;
         }
     }
