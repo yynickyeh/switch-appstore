@@ -40,6 +40,7 @@ public:
     const Color& cardBackgroundColor() const { return getColor("card_bg"); }
     const Color& textPrimaryColor() const { return getColor("text_primary"); }
     const Color& textSecondaryColor() const { return getColor("text_secondary"); }
+    const Color& textTertiaryColor() const { return getColor("text_tertiary"); }
     const Color& separatorColor() const { return getColor("separator"); }
     const Color& successColor() const { return getColor("success"); }
     const Color& warningColor() const { return getColor("warning"); }
