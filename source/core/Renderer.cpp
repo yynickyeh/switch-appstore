@@ -12,8 +12,8 @@
 Renderer::Renderer(SDL_Renderer* sdlRenderer, float scale)
     : m_sdlRenderer(sdlRenderer)
     , m_scale(scale)
-    , m_regularFontPath("romfs:/fonts/PingFang-Regular.ttf")
-    , m_boldFontPath("romfs:/fonts/PingFang-Bold.ttf")
+    , m_regularFontPath("romfs:/fonts/NotoSansCJKsc-Regular.otf")
+    , m_boldFontPath("romfs:/fonts/NotoSansCJKsc-Regular.otf")
 {
 }
 
