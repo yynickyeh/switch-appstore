@@ -59,6 +59,7 @@ private:
     void renderSearchResults(Renderer& renderer);
     void performSearch(const std::string& query);
     void loadDemoContent();
+    void showKeyboard();  // Show Switch software keyboard
     
     // -------------------------------------------------------------------------
     // Private members

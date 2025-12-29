@@ -7,6 +7,7 @@
 #include "core/Input.hpp"
 #include "ui/Theme.hpp"
 #include <algorithm>
+#include <switch.h>  // For swkbd (software keyboard)
 
 // =============================================================================
 // Constructor & Destructor
@@ -90,13 +91,24 @@ void SearchScreen::handleInput(const Input& input) {
     }
     
     // X button to focus search bar (open keyboard on Switch)
-    if (input.isPressed(Input::Button::X)) {
-        m_searchBarFocused = true;
-        // TODO: Show on-screen keyboard via swkbd
+    if (input.isPressed(Input::Button::X) || input.isPressed(Input::Button::Y)) {
+        showKeyboard();
+    }
+    
+    // Touch handling
+    const auto& touch = input.getTouch();
+    
+    // Touch on search bar area to open keyboard
+    if (touch.justReleased) {
+        float barY = SEARCH_BAR_MARGIN;
+        float barWidth = 1280 - SIDE_PADDING * 2 - 80;
+        if (touch.y >= barY && touch.y <= barY + SEARCH_BAR_HEIGHT &&
+            touch.x >= SIDE_PADDING && touch.x <= SIDE_PADDING + barWidth) {
+            showKeyboard();
+        }
     }
     
     // Touch handling for tags
-    const auto& touch = input.getTouch();
     if (touch.justReleased && !m_isSearching) {
         // Check if touching a tag
         float tagY = SEARCH_BAR_HEIGHT + SEARCH_BAR_MARGIN * 2 + 30;
@@ -364,3 +376,43 @@ void SearchScreen::loadDemoContent() {
         {"7", "异度神剑3", "Monolith Soft", "角色扮演", "", 4.6f, "15.0GB"},
     };
 }
+
+// =============================================================================
+// Software Keyboard
+// =============================================================================
+
+void SearchScreen::showKeyboard() {
+    // Initialize swkbd config
+    SwkbdConfig kbd;
+    Result rc = swkbdCreate(&kbd, 0);
+    
+    if (R_SUCCEEDED(rc)) {
+        // Configure keyboard
+        swkbdConfigMakePresetDefault(&kbd);
+        swkbdConfigSetGuideText(&kbd, "输入搜索关键词");
+        swkbdConfigSetInitialText(&kbd, m_searchQuery.c_str());
+        swkbdConfigSetStringLenMax(&kbd, 64);
+        swkbdConfigSetStringLenMin(&kbd, 0);
+        swkbdConfigSetType(&kbd, SwkbdType_Normal);
+        
+        // Show keyboard and get input
+        char resultText[65] = {0};
+        rc = swkbdShow(&kbd, resultText, sizeof(resultText));
+        
+        if (R_SUCCEEDED(rc)) {
+            // User confirmed input
+            m_searchQuery = resultText;
+            
+            if (!m_searchQuery.empty()) {
+                performSearch(m_searchQuery);
+            } else {
+                // Empty query - clear search
+                m_isSearching = false;
+                m_searchResults.clear();
+            }
+        }
+        
+        swkbdClose(&kbd);
+    }
+}
+
