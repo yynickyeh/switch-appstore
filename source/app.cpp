@@ -11,6 +11,8 @@
 #include "ui/Theme.hpp"
 #include "ui/screens/TodayScreen.hpp"
 #include "ui/screens/GamesScreen.hpp"
+#include "ui/screens/ToolsScreen.hpp"
+#include "ui/screens/EmulatorsScreen.hpp"
 #include "ui/screens/SearchScreen.hpp"
 
 #include <switch.h>
@@ -137,14 +139,14 @@ bool App::init() {
     m_router->init(this);
     
     // Add all 5 tab screens
-    // Tab 0: Today
+    // Tab 0: Today - Featured content
     m_router->addTabScreen(std::make_unique<TodayScreen>(this));
-    // Tab 1: Games
+    // Tab 1: Games - Game catalog
     m_router->addTabScreen(std::make_unique<GamesScreen>(this));
-    // Tab 2: Apps (reuse TodayScreen for now)
-    m_router->addTabScreen(std::make_unique<TodayScreen>(this));
-    // Tab 3: Arcade (reuse TodayScreen for now)
-    m_router->addTabScreen(std::make_unique<TodayScreen>(this));
+    // Tab 2: Tools - Homebrew utilities
+    m_router->addTabScreen(std::make_unique<ToolsScreen>(this));
+    // Tab 3: Emulators - Retro gaming
+    m_router->addTabScreen(std::make_unique<EmulatorsScreen>(this));
     // Tab 4: Search
     m_router->addTabScreen(std::make_unique<SearchScreen>(this));
     
