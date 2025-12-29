@@ -305,6 +305,25 @@ void Renderer::clearClipRect() {
 }
 
 // =============================================================================
+// Transform Stack
+// =============================================================================
+
+void Renderer::pushTransform(float offsetX, float offsetY) {
+    m_transformStack.push_back({offsetX, offsetY});
+    m_totalOffsetX += offsetX;
+    m_totalOffsetY += offsetY;
+}
+
+void Renderer::popTransform() {
+    if (!m_transformStack.empty()) {
+        auto& last = m_transformStack.back();
+        m_totalOffsetX -= last.first;
+        m_totalOffsetY -= last.second;
+        m_transformStack.pop_back();
+    }
+}
+
+// =============================================================================
 // Shadow Effects
 // =============================================================================
 

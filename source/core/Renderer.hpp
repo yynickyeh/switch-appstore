@@ -13,6 +13,7 @@
 #include <string>
 #include <unordered_map>
 #include <memory>
+#include <vector>
 
 // =============================================================================
 // Color structure for easy color management
@@ -189,6 +190,20 @@ public:
     void clearClipRect();
     
     // -------------------------------------------------------------------------
+    // Transform stack (for transitions and animations)
+    // -------------------------------------------------------------------------
+    
+    // Push a translation offset
+    void pushTransform(float offsetX, float offsetY);
+    
+    // Pop the last transform
+    void popTransform();
+    
+    // Get current total offset
+    float getOffsetX() const { return m_totalOffsetX; }
+    float getOffsetY() const { return m_totalOffsetY; }
+    
+    // -------------------------------------------------------------------------
     // Shadow effects (for cards)
     // -------------------------------------------------------------------------
     
@@ -220,4 +235,9 @@ private:
     // Base font paths
     std::string m_regularFontPath;
     std::string m_boldFontPath;
+    
+    // Transform stack for transitions
+    std::vector<std::pair<float, float>> m_transformStack;
+    float m_totalOffsetX = 0.0f;
+    float m_totalOffsetY = 0.0f;
 };
