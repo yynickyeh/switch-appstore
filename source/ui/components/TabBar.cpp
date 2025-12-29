@@ -7,6 +7,7 @@
 #include "core/Input.hpp"
 #include "ui/Theme.hpp"
 #include "ui/Router.hpp"
+#include <cmath>
 
 // =============================================================================
 // Constructor
@@ -65,13 +66,19 @@ bool TabBar::handleInput(const Input& input) {
     }
     
     // Touch input for direct tab selection
-    // Using isTap for more accurate tap detection (not swipes)
+    // Accept both isTap (precise) and justReleased (fallback) for better UX
     const auto& touch = input.getTouch();
-    if (touch.isTap) {
-        int hitIndex = hitTestTabs(touch.x, touch.y);
-        if (hitIndex >= 0 && hitIndex != m_selectedIndex) {
-            setSelectedIndex(hitIndex);
-            return true;
+    if (touch.justReleased) {
+        // For tab bar, we use justReleased with a distance check
+        // This is more forgiving than strict isTap
+        float dist = std::sqrt((touch.x - touch.startX) * (touch.x - touch.startX) +
+                               (touch.y - touch.startY) * (touch.y - touch.startY));
+        if (dist < 60.0f) {  // Allow up to 60px movement for tab selection
+            int hitIndex = hitTestTabs(touch.x, touch.y);
+            if (hitIndex >= 0 && hitIndex != m_selectedIndex) {
+                setSelectedIndex(hitIndex);
+                return true;
+            }
         }
     }
     

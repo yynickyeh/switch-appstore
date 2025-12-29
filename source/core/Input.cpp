@@ -58,9 +58,9 @@ void Input::update() {
     float prevX = m_touch.x;
     float prevY = m_touch.y;
     
-    // Constants for tap detection
-    constexpr float TAP_MAX_MOVEMENT = 30.0f;   // Max pixels moved for a tap
-    constexpr float TAP_MAX_DURATION = 0.3f;    // Max seconds for a tap
+    // Constants for tap detection - relaxed for better usability
+    constexpr float TAP_MAX_MOVEMENT = 50.0f;   // Max pixels moved for a tap (relaxed)
+    constexpr float TAP_MAX_DURATION = 0.5f;    // Max seconds for a tap (relaxed)
     constexpr float VELOCITY_SMOOTHING = 0.3f;  // Smoothing factor for velocity
     
     if (touchState.count > 0) {
