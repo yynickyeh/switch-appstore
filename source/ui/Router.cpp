@@ -65,11 +65,41 @@ Screen* Router::currentScreen() const {
 // Tab Navigation
 // =============================================================================
 
+void Router::addTabScreen(std::unique_ptr<Screen> screen) {
+    if (screen) {
+        // First tab screen gets entered immediately
+        if (m_tabScreens.empty()) {
+            screen->onEnter();
+        }
+        m_tabScreens.push_back(std::move(screen));
+    }
+}
+
 void Router::switchTab(int tabIndex) {
     if (tabIndex == m_currentTab) return;
+    if (tabIndex < 0 || tabIndex >= static_cast<int>(m_tabScreens.size())) return;
     
-    // TODO: Implement tab switching with crossfade animation
+    // Exit current tab screen if any
+    if (m_currentTab >= 0 && m_currentTab < static_cast<int>(m_tabScreens.size())) {
+        if (m_tabScreens[m_currentTab]) {
+            m_tabScreens[m_currentTab]->onExit();
+        }
+    }
+    
+    // Switch to new tab
     m_currentTab = tabIndex;
+    
+    // Enter new tab screen
+    if (m_tabScreens[m_currentTab]) {
+        m_tabScreens[m_currentTab]->onEnter();
+    }
+    
+    // Update the main screen stack to point to the new tab
+    if (!m_tabScreens.empty() && m_tabScreens[m_currentTab]) {
+        m_screens.clear();
+        // Create a copy reference - we don't move, just use raw pointer for display
+        // The tab screens are owned by m_tabScreens
+    }
 }
 
 // =============================================================================
@@ -80,7 +110,7 @@ void Router::handleInput(const Input& input) {
     // Don't process input during transitions
     if (m_transitioning) return;
     
-    // Handle back button (B)
+    // Handle back button (B) for screen stack
     if (input.isPressed(Input::Button::B)) {
         if (m_screens.size() > 1) {
             pop();
@@ -88,7 +118,17 @@ void Router::handleInput(const Input& input) {
         }
     }
     
-    // Pass input to current screen
+    // Pass input to current tab screen if using tabs
+    if (!m_tabScreens.empty()) {
+        if (m_currentTab >= 0 && m_currentTab < static_cast<int>(m_tabScreens.size())) {
+            if (m_tabScreens[m_currentTab]) {
+                m_tabScreens[m_currentTab]->handleInput(input);
+            }
+        }
+        return;
+    }
+    
+    // Pass input to current screen in stack
     Screen* screen = currentScreen();
     if (screen) {
         screen->handleInput(input);
@@ -119,7 +159,17 @@ void Router::update(float deltaTime) {
         }
     }
     
-    // Update current screen
+    // Update current tab screen if using tabs
+    if (!m_tabScreens.empty()) {
+        if (m_currentTab >= 0 && m_currentTab < static_cast<int>(m_tabScreens.size())) {
+            if (m_tabScreens[m_currentTab]) {
+                m_tabScreens[m_currentTab]->update(deltaTime);
+            }
+        }
+        return;
+    }
+    
+    // Update current screen in stack
     Screen* screen = currentScreen();
     if (screen) {
         screen->update(deltaTime);
@@ -127,6 +177,17 @@ void Router::update(float deltaTime) {
 }
 
 void Router::render(Renderer& renderer) {
+    // If we have tab screens, render the current tab
+    if (!m_tabScreens.empty()) {
+        if (m_currentTab >= 0 && m_currentTab < static_cast<int>(m_tabScreens.size())) {
+            if (m_tabScreens[m_currentTab]) {
+                m_tabScreens[m_currentTab]->render(renderer);
+            }
+        }
+        return;
+    }
+    
+    // Otherwise use the screen stack
     if (m_screens.empty()) return;
     
     // During transitions, render both screens with appropriate offsets

@@ -52,6 +52,9 @@ public:
     // Switch to a different tab
     void switchTab(int tabIndex);
     
+    // Add a tab screen
+    void addTabScreen(std::unique_ptr<Screen> screen);
+    
     // Get current tab index
     int getCurrentTab() const { return m_currentTab; }
     

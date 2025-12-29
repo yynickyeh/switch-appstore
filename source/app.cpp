@@ -10,6 +10,8 @@
 #include "ui/Router.hpp"
 #include "ui/Theme.hpp"
 #include "ui/screens/TodayScreen.hpp"
+#include "ui/screens/GamesScreen.hpp"
+#include "ui/screens/SearchScreen.hpp"
 
 #include <switch.h>
 
@@ -128,12 +130,20 @@ bool App::init() {
     m_theme = std::make_unique<Theme>();
     m_theme->loadTheme("light");  // Start with light theme (Apple style)
     
-    // Create router and set up initial screen
+    // Create router and set up tab screens (like iOS App Store)
     m_router = std::make_unique<Router>();
     
-    // Start with the Today screen (like App Store)
-    auto todayScreen = std::make_unique<TodayScreen>(this);
-    m_router->setRootScreen(std::move(todayScreen));
+    // Add all 5 tab screens
+    // Tab 0: Today
+    m_router->addTabScreen(std::make_unique<TodayScreen>(this));
+    // Tab 1: Games
+    m_router->addTabScreen(std::make_unique<GamesScreen>(this));
+    // Tab 2: Apps (reuse TodayScreen for now)
+    m_router->addTabScreen(std::make_unique<TodayScreen>(this));
+    // Tab 3: Arcade (reuse TodayScreen for now)
+    m_router->addTabScreen(std::make_unique<TodayScreen>(this));
+    // Tab 4: Search
+    m_router->addTabScreen(std::make_unique<SearchScreen>(this));
     
     // -------------------------------------------------------------------------
     // Initialize timing
