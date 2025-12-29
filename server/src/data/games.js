@@ -1,0 +1,293 @@
+// =============================================================================
+// Switch App Store - Game Data Store
+// =============================================================================
+// In-memory game catalog (in production, use a database)
+// =============================================================================
+
+const games = [
+    // ==========================================================================
+    // Featured Games
+    // ==========================================================================
+    {
+        id: "retroarch",
+        name: "RetroArch",
+        developer: "RetroArch Team",
+        description: "RetroArch 是一个跨平台的模拟器前端，支持多种游戏主机的模拟。包含 NES、SNES、N64、GBA、PS1 等众多核心。",
+        category: "emulators",
+        version: "1.16.0",
+        titleId: "010000000000100D",
+        iconUrl: "/static/icons/retroarch.png",
+        screenshotUrls: [
+            "/static/screenshots/retroarch_1.png",
+            "/static/screenshots/retroarch_2.png",
+            "/static/screenshots/retroarch_3.png"
+        ],
+        downloadUrl: "https://buildbot.libretro.com/nightly/nintendo/switch/libnx/RetroArch.nro",
+        fileSize: 67108864,
+        rating: 4.8,
+        downloadCount: 150000,
+        releaseDate: "2024-01-15",
+        languages: ["en", "zh", "ja"],
+        featured: true
+    },
+    {
+        id: "mgba",
+        name: "mGBA",
+        developer: "endrift",
+        description: "mGBA 是一个高精度的 Game Boy Advance 模拟器。支持 GB、GBC、GBA 游戏，拥有即时存档、金手指等功能。",
+        category: "emulators",
+        version: "0.10.3",
+        titleId: "0100000000001001",
+        iconUrl: "/static/icons/mgba.png",
+        screenshotUrls: [
+            "/static/screenshots/mgba_1.png",
+            "/static/screenshots/mgba_2.png"
+        ],
+        downloadUrl: "https://mgba.io/downloads/mgba-switch.nro",
+        fileSize: 12582912,
+        rating: 4.7,
+        downloadCount: 85000,
+        releaseDate: "2024-02-20",
+        languages: ["en", "zh", "ja"],
+        featured: true
+    },
+    {
+        id: "ppsspp",
+        name: "PPSSPP",
+        developer: "Henrik Rydgård",
+        description: "PPSSPP 是一个快速的 PSP 模拟器，可以运行大多数 PSP 游戏。支持高清渲染、即时存档、手柄映射等功能。",
+        category: "emulators",
+        version: "1.17.1",
+        titleId: "0100000000001002",
+        iconUrl: "/static/icons/ppsspp.png",
+        screenshotUrls: [
+            "/static/screenshots/ppsspp_1.png",
+            "/static/screenshots/ppsspp_2.png",
+            "/static/screenshots/ppsspp_3.png"
+        ],
+        downloadUrl: "https://ppsspp.org/downloads/ppsspp-switch.nro",
+        fileSize: 41943040,
+        rating: 4.6,
+        downloadCount: 120000,
+        releaseDate: "2024-03-10",
+        languages: ["en", "zh", "ja", "ko"],
+        featured: true
+    },
+
+    // ==========================================================================
+    // Homebrew Games
+    // ==========================================================================
+    {
+        id: "celeste_classic",
+        name: "Celeste Classic",
+        developer: "Matt Thorson & Noel Berry",
+        description: "Celeste Classic 是 Celeste 的原始 PICO-8 版本。一个精致的平台跳跃游戏，帮助 Madeline 攀登 Celeste 山。",
+        category: "games",
+        version: "1.0.0",
+        titleId: "0100000000002001",
+        iconUrl: "/static/icons/celeste.png",
+        screenshotUrls: [
+            "/static/screenshots/celeste_1.png",
+            "/static/screenshots/celeste_2.png"
+        ],
+        downloadUrl: "/static/nro/celeste_classic.nro",
+        fileSize: 2097152,
+        rating: 4.9,
+        downloadCount: 45000,
+        releaseDate: "2023-12-01",
+        languages: ["en"],
+        featured: false
+    },
+    {
+        id: "2048",
+        name: "2048",
+        developer: "Homebrew Community",
+        description: "经典的 2048 数字合并游戏。滑动方块，合并相同数字，目标是达到 2048！简单但令人上瘾。",
+        category: "games",
+        version: "1.2.0",
+        titleId: "0100000000002002",
+        iconUrl: "/static/icons/2048.png",
+        screenshotUrls: [
+            "/static/screenshots/2048_1.png"
+        ],
+        downloadUrl: "/static/nro/2048.nro",
+        fileSize: 524288,
+        rating: 4.3,
+        downloadCount: 25000,
+        releaseDate: "2023-10-15",
+        languages: ["en", "zh"],
+        featured: false
+    },
+    {
+        id: "tetriswitch",
+        name: "TetriSwitch",
+        developer: "Homebrew Community",
+        description: "经典俄罗斯方块游戏的 Switch 移植版。支持多种游戏模式，包括马拉松、挑战和对战模式。",
+        category: "games",
+        version: "2.1.0",
+        titleId: "0100000000002003",
+        iconUrl: "/static/icons/tetris.png",
+        screenshotUrls: [
+            "/static/screenshots/tetris_1.png",
+            "/static/screenshots/tetris_2.png"
+        ],
+        downloadUrl: "/static/nro/tetriswitch.nro",
+        fileSize: 1048576,
+        rating: 4.5,
+        downloadCount: 38000,
+        releaseDate: "2023-11-20",
+        languages: ["en", "zh", "ja"],
+        featured: false
+    },
+
+    // ==========================================================================
+    // Tools
+    // ==========================================================================
+    {
+        id: "nxthemes",
+        name: "NXThemes Installer",
+        developer: "exelix11",
+        description: "NXThemes 是一个主题安装工具，可以安装和管理 Switch 自定义主题。支持自定义主屏幕、锁屏、设置等界面。",
+        category: "tools",
+        version: "2.7.1",
+        titleId: "0100000000003001",
+        iconUrl: "/static/icons/nxthemes.png",
+        screenshotUrls: [
+            "/static/screenshots/nxthemes_1.png",
+            "/static/screenshots/nxthemes_2.png"
+        ],
+        downloadUrl: "/static/nro/nxthemes.nro",
+        fileSize: 8388608,
+        rating: 4.6,
+        downloadCount: 95000,
+        releaseDate: "2024-01-05",
+        languages: ["en", "zh"],
+        featured: false
+    },
+    {
+        id: "goldleaf",
+        name: "Goldleaf",
+        developer: "XorTroll",
+        description: "Goldleaf 是一个多功能的 Switch 文件管理器。支持 NSP 安装、USB 连接、文件浏览、用户管理等功能。",
+        category: "tools",
+        version: "0.10.0",
+        titleId: "0100000000003002",
+        iconUrl: "/static/icons/goldleaf.png",
+        screenshotUrls: [
+            "/static/screenshots/goldleaf_1.png",
+            "/static/screenshots/goldleaf_2.png"
+        ],
+        downloadUrl: "/static/nro/goldleaf.nro",
+        fileSize: 15728640,
+        rating: 4.7,
+        downloadCount: 180000,
+        releaseDate: "2024-02-01",
+        languages: ["en", "es", "de", "fr", "it", "ja", "ko", "nl", "pt", "ru", "zh"],
+        featured: false
+    },
+    {
+        id: "tinfoil",
+        name: "Tinfoil",
+        developer: "Adubbz",
+        description: "Tinfoil 是一个强大的标题安装和管理工具。支持通过 USB、网络、SD 卡安装游戏和更新。",
+        category: "tools",
+        version: "16.0",
+        titleId: "0100000000003003",
+        iconUrl: "/static/icons/tinfoil.png",
+        screenshotUrls: [
+            "/static/screenshots/tinfoil_1.png",
+            "/static/screenshots/tinfoil_2.png"
+        ],
+        downloadUrl: "/static/nro/tinfoil.nro",
+        fileSize: 20971520,
+        rating: 4.4,
+        downloadCount: 250000,
+        releaseDate: "2024-03-01",
+        languages: ["en"],
+        featured: false
+    },
+
+    // ==========================================================================
+    // More Games
+    // ==========================================================================
+    {
+        id: "doom",
+        name: "Doom (1993)",
+        developer: "id Software / Homebrew Port",
+        description: "经典第一人称射击游戏 DOOM 的 Switch 移植版。需要原版 WAD 文件才能运行。",
+        category: "games",
+        version: "1.0.0",
+        titleId: "0100000000002004",
+        iconUrl: "/static/icons/doom.png",
+        screenshotUrls: [
+            "/static/screenshots/doom_1.png",
+            "/static/screenshots/doom_2.png"
+        ],
+        downloadUrl: "/static/nro/doom.nro",
+        fileSize: 3145728,
+        rating: 4.8,
+        downloadCount: 55000,
+        releaseDate: "2023-09-01",
+        languages: ["en"],
+        featured: false
+    },
+    {
+        id: "quake",
+        name: "Quake",
+        developer: "id Software / Homebrew Port",
+        description: "经典 3D 射击游戏 Quake 的 Switch 移植版。完整支持原版游戏内容和 MOD。",
+        category: "games",
+        version: "1.5.0",
+        titleId: "0100000000002005",
+        iconUrl: "/static/icons/quake.png",
+        screenshotUrls: [
+            "/static/screenshots/quake_1.png",
+            "/static/screenshots/quake_2.png"
+        ],
+        downloadUrl: "/static/nro/quake.nro",
+        fileSize: 4194304,
+        rating: 4.7,
+        downloadCount: 42000,
+        releaseDate: "2023-08-15",
+        languages: ["en"],
+        featured: false
+    }
+];
+
+// =============================================================================
+// Categories
+// =============================================================================
+
+const categories = [
+    { id: "games", name: "游戏", nameEn: "Games", icon: "game" },
+    { id: "emulators", name: "模拟器", nameEn: "Emulators", icon: "gamepad" },
+    { id: "tools", name: "工具", nameEn: "Tools", icon: "tool" },
+    { id: "themes", name: "主题", nameEn: "Themes", icon: "palette" }
+];
+
+// =============================================================================
+// Exports
+// =============================================================================
+
+module.exports = {
+    games,
+    categories,
+
+    // Helper functions
+    getGameById: (id) => games.find(g => g.id === id),
+    getGamesByCategory: (category) => games.filter(g => g.category === category),
+    getFeaturedGames: () => games.filter(g => g.featured),
+    getPopularGames: (limit = 10) => {
+        return [...games]
+            .sort((a, b) => b.downloadCount - a.downloadCount)
+            .slice(0, limit);
+    },
+    searchGames: (query) => {
+        const lowerQuery = query.toLowerCase();
+        return games.filter(g =>
+            g.name.toLowerCase().includes(lowerQuery) ||
+            g.developer.toLowerCase().includes(lowerQuery) ||
+            g.description.toLowerCase().includes(lowerQuery)
+        );
+    }
+};
