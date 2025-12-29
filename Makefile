@@ -19,24 +19,21 @@ include $(DEVKITPRO)/libnx/switch_rules
 APP_TITLE	:=	Switch App Store
 APP_AUTHOR	:=	yynickyeh
 APP_VERSION	:=	0.1.0
-APP_TITLEID	:=	
 
 #---------------------------------------------------------------------------------
 # Target and build directories
 #---------------------------------------------------------------------------------
 TARGET		:=	switch-appstore
 BUILD		:=	build
-SOURCES		:=	source \
-				source/core \
-				source/ui \
-				source/ui/components \
-				source/ui/screens \
-				source/network \
-				source/store \
-				source/utils
+SOURCES		:=	source source/core source/ui source/ui/components source/ui/screens source/network source/store source/utils
 DATA		:=	data
-INCLUDES	:=	include
+INCLUDES	:=	source include
 ROMFS		:=	romfs
+
+#---------------------------------------------------------------------------------
+# Portlibs path
+#---------------------------------------------------------------------------------
+PORTLIBS	:=	$(DEVKITPRO)/portlibs/switch
 
 #---------------------------------------------------------------------------------
 # Compiler options
@@ -47,7 +44,8 @@ CFLAGS		:=	-g -Wall -O2 -ffunction-sections \
 				$(ARCH) $(DEFINES)
 
 CFLAGS		+=	$(INCLUDE) -D__SWITCH__ \
-				$(shell $(DEVKITPRO)/portlibs/switch/bin/aarch64-none-elf-pkg-config --cflags sdl2 SDL2_image SDL2_ttf SDL2_gfx)
+				-I$(PORTLIBS)/include \
+				-I$(PORTLIBS)/include/SDL2
 
 CXXFLAGS	:=	$(CFLAGS) -std=c++17 -fno-rtti -fno-exceptions
 
@@ -57,12 +55,15 @@ LDFLAGS		:=	-specs=$(DEVKITPRO)/libnx/switch.specs -g $(ARCH) \
 				-Wl,-Map,$(notdir $*.map)
 
 #---------------------------------------------------------------------------------
-# Libraries to link
+# Libraries to link (explicit, no pkg-config)
 #---------------------------------------------------------------------------------
-LIBS		:=	$(shell $(DEVKITPRO)/portlibs/switch/bin/aarch64-none-elf-pkg-config --libs sdl2 SDL2_image SDL2_ttf SDL2_gfx) \
+LIBS		:=	-L$(PORTLIBS)/lib \
+				-lSDL2_ttf -lSDL2_gfx -lSDL2_image -lSDL2 \
+				-lEGL -lglapi -ldrm_nouveau \
+				-lharfbuzz -lfreetype -lpng16 -ljpeg -lwebp \
 				-lcurl -lmbedtls -lmbedcrypto -lmbedx509 \
-				-lfreetype -lpng -ljpeg -lwebp \
-				-lz -lbz2 -lnx
+				-lz -lbz2 \
+				-lnx
 
 #---------------------------------------------------------------------------------
 # Library directories
