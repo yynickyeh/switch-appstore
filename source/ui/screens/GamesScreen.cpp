@@ -121,13 +121,37 @@ void GamesScreen::handleInput(const Input& input) {
         }
     }
     
-    // Touch scrolling
+    // Touch handling
     const auto& touch = input.getTouch();
     if (touch.touching) {
         m_scrollY -= touch.deltaY;
         m_scrollVelocity = 0.0f;
     } else if (touch.justReleased) {
-        m_scrollVelocity = -touch.velocityY * 30.0f;
+        // Check if it was a tap
+        float dragDist = std::sqrt((touch.x - touch.startX) * (touch.x - touch.startX) +
+                                   (touch.y - touch.startY) * (touch.y - touch.startY));
+        
+        if (dragDist < 30.0f && m_showingInstalled) {
+            // Tap on installed games list
+            float contentY = HEADER_HEIGHT - m_scrollY;
+            float tapY = touch.y;
+            float itemHeight = 88.0f;
+            
+            if (tapY > HEADER_HEIGHT && tapY < 720.0f - 70.0f) {
+                int tappedIndex = static_cast<int>((tapY - contentY) / itemHeight);
+                
+                if (tappedIndex >= 0 && tappedIndex < static_cast<int>(m_installedGames.size())) {
+                    if (tappedIndex == m_selectedInstalledGame) {
+                        // Double tap - delete
+                        deleteSelectedGame();
+                    } else {
+                        m_selectedInstalledGame = tappedIndex;
+                    }
+                }
+            }
+        } else {
+            m_scrollVelocity = -touch.velocityY * 30.0f;
+        }
     }
 }
 
