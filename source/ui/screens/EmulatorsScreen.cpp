@@ -46,6 +46,11 @@ void EmulatorsScreen::onResolutionChanged(int width, int height, float scale) {
 // =============================================================================
 
 void EmulatorsScreen::handleInput(const Input& input) {
+    // =========================================================================
+    // TOUCH GRID SYSTEM
+    // Bringing "Apple-like" responsiveness to the grid view.
+    // =========================================================================
+
     int cols = COLUMNS;
     int total = static_cast<int>(m_emulators.size());
     
@@ -79,16 +84,69 @@ void EmulatorsScreen::handleInput(const Input& input) {
     // Analog stick scrolling
     float stickY = input.getLeftStick().y;
     if (stickY != 0.0f) {
-        m_scrollVelocity = -stickY * 500.0f;
+        m_scrollVelocity = -stickY * 600.0f; // Unified physics
     }
     
-    // Touch scrolling - direct 1:1 mapping
+    // -------------------------------------------------------------------------
+    // TOUCH HANDLING
+    // -------------------------------------------------------------------------
     const auto& touch = input.getTouch();
+    
     if (touch.touching) {
+        // Direct manipulation
         m_scrollY -= touch.deltaY;
         m_scrollVelocity = 0.0f;
     } else if (touch.justReleased) {
-        m_scrollVelocity = -touch.velocityY * 30.0f;
+        // Tap vs Scroll
+        float dragDist = std::sqrt((touch.x - touch.startX) * (touch.x - touch.startX) +
+                                   (touch.y - touch.startY) * (touch.y - touch.startY));
+        
+        if (dragDist < 30.0f) {
+            // TAP DETECTED
+            float tapX = touch.x;
+            float tapY = touch.y;
+            
+            // Check content area
+            if (tapY > HEADER_HEIGHT && tapY < 720.0f - TAB_BAR_HEIGHT) {
+                // Reverse map coordinates to grid index
+                // Note: contentY in render is HEADER_HEIGHT + 20 - m_scrollY
+                float contentOffset = HEADER_HEIGHT + 20.0f - m_scrollY;
+                float relativeY = tapY - contentOffset;
+                
+                // Calculate dynamic card width (same as render)
+                float totalWidth = 1280 - SIDE_PADDING * 2;
+                float cardWidth = (totalWidth - CARD_SPACING * (COLUMNS - 1)) / COLUMNS;
+                float rowHeight = CARD_HEIGHT + CARD_SPACING;
+                float colWidth = cardWidth + CARD_SPACING;
+                
+                int row = static_cast<int>(relativeY / rowHeight);
+                int col = static_cast<int>((tapX - SIDE_PADDING) / colWidth);
+                
+                // Validate grid coordinates
+                // We check if the tap is within the card height/width (not the spacing gap)
+                float localY = relativeY - row * rowHeight;
+                float localX = (tapX - SIDE_PADDING) - col * colWidth;
+                
+                if (row >= 0 && col >= 0 && col < COLUMNS &&
+                    localY <= CARD_HEIGHT && localX <= cardWidth) {
+                    
+                    int index = row * COLUMNS + col;
+                    
+                    if (index >= 0 && index < total) {
+                        // Valid item tapped
+                        if (m_selectedIndex == index) {
+                            // Double tap -> Open/Download
+                            // TODO: Trigger action
+                        } else {
+                            m_selectedIndex = index;
+                        }
+                    }
+                }
+            }
+        } else {
+            // Spring Momentum
+            m_scrollVelocity = -touch.velocityY * 35.0f;
+        }
     }
 }
 

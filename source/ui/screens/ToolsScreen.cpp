@@ -57,6 +57,11 @@ void ToolsScreen::onResolutionChanged(int width, int height, float scale) {
 // =============================================================================
 
 void ToolsScreen::handleInput(const Input& input) {
+    // =========================================================================
+    // NATIVE TOUCH EXPERIENCE
+    // Implementing direct manipulation and precise hit testing for tool actions.
+    // =========================================================================
+    
     auto& tools = m_showingInstalled ? m_installedTools : m_storeTools;
     
     // Y button to toggle between store and installed view
@@ -94,46 +99,73 @@ void ToolsScreen::handleInput(const Input& input) {
     // Analog stick scrolling
     float stickY = input.getLeftStick().y;
     if (stickY != 0.0f) {
-        m_scrollVelocity = -stickY * 500.0f;
+        m_scrollVelocity = -stickY * 600.0f; // Matches GamesScreen physics
     }
     
-    // Touch handling
+    // -------------------------------------------------------------------------
+    // TOUCH HANDLING
+    // -------------------------------------------------------------------------
     const auto& touch = input.getTouch();
+    
     if (touch.touching) {
-        // Scrolling while touching
+        // Direct scroll
         m_scrollY -= touch.deltaY;
         m_scrollVelocity = 0.0f;
     } else if (touch.justReleased) {
-        // Check if it was a tap (not a drag)
+        // Tap vs Scroll detection
         float dragDist = std::sqrt((touch.x - touch.startX) * (touch.x - touch.startX) +
                                    (touch.y - touch.startY) * (touch.y - touch.startY));
         
         if (dragDist < 30.0f) {
-            // It's a tap - find which item was tapped
+            // TAP DETECTED
             float contentY = HEADER_HEIGHT - m_scrollY;
             float tapY = touch.y;
+            float tapX = touch.x;
             
-            // Check if tap is in content area (below header, above tab bar)
+            // Check content area
             if (tapY > HEADER_HEIGHT && tapY < 720.0f - TAB_BAR_HEIGHT) {
                 int tappedIndex = static_cast<int>((tapY - contentY) / ITEM_HEIGHT);
                 
                 if (tappedIndex >= 0 && tappedIndex < static_cast<int>(tools.size())) {
-                    if (tappedIndex == m_selectedIndex) {
-                        // Double tap on same item - trigger action
+                    
+                    // ---------------------------------------------------------
+                    // Check for ACTION BUTTON tap
+                    // The "Get" or "Delete" button is on the right side
+                    // ---------------------------------------------------------
+                    float itemTopY = contentY + tappedIndex * ITEM_HEIGHT;
+                    float btnX = 1280 - SIDE_PADDING - 70;
+                    float btnY = itemTopY + 28;
+                    float btnW = 60;
+                    float btnH = 32;
+                    
+                    // Add generous padding for touch target (Hit Slop)
+                    if (tapX >= btnX - 20 && tapX <= btnX + btnW + 20 &&
+                        tapY >= btnY - 20 && tapY <= btnY + btnH + 20) {
+                        
+                        // Select it first to be sure
+                        m_selectedIndex = tappedIndex;
+                        
+                        // Trigger Action Immediately
                         if (m_showingInstalled) {
                             deleteSelectedTool();
                         } else {
                             downloadSelectedTool();
                         }
                     } else {
-                        // Select this item
-                        m_selectedIndex = tappedIndex;
+                        // Normal row tap
+                        if (tappedIndex == m_selectedIndex) {
+                            // Double tap approach (optional, but button is preferred)
+                            // We kept this for keyboard/controller logic consistency if needed
+                            // But for touch, the button above is the primary way.
+                        } else {
+                            m_selectedIndex = tappedIndex;
+                        }
                     }
                 }
             }
         } else {
-            // It's a drag - apply momentum
-            m_scrollVelocity = -touch.velocityY * 30.0f;
+            // Drag Momentum
+            m_scrollVelocity = -touch.velocityY * 35.0f;
         }
     }
 }

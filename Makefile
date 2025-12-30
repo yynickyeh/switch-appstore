@@ -112,6 +112,10 @@ ifeq ($(strip $(ICON)),)
 	else
 		ifneq (,$(findstring icon.jpg,$(icons)))
 			export APP_ICON := $(TOPDIR)/icon.jpg
+		else
+			ifneq (,$(wildcard icon.png))
+				export APP_ICON := $(TOPDIR)/icon.png
+			endif
 		endif
 	endif
 else

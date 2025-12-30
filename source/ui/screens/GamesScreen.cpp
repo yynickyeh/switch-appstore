@@ -58,6 +58,15 @@ void GamesScreen::onResolutionChanged(int width, int height, float scale) {
 // =============================================================================
 
 void GamesScreen::handleInput(const Input& input) {
+    // =========================================================================
+    // STEVE JOBS MENTALITY: "Design is not just what it looks like and feels like. 
+    // Design is how it works."
+    // 
+    // We are crafting a touch experience that rivals the native Switch OS and 
+    // feels as fluid as iOS. Every tap must be responsive, every scroll must 
+    // have the perfect localized inertia.
+    // =========================================================================
+
     // Y button to toggle between store and installed view
     if (input.isPressed(Input::Button::Y)) {
         m_showingInstalled = !m_showingInstalled;
@@ -76,7 +85,8 @@ void GamesScreen::handleInput(const Input& input) {
     // Vertical scrolling with analog stick
     float stickY = input.getLeftStick().y;
     if (stickY != 0.0f) {
-        m_scrollVelocity = -stickY * 500.0f;
+        // Smooth analog acceleration
+        m_scrollVelocity = -stickY * 600.0f; 
     }
     
     // D-pad navigation
@@ -94,7 +104,7 @@ void GamesScreen::handleInput(const Input& input) {
         // Navigate store categories
         float stickX = input.getLeftStick().x;
         if (stickX != 0.0f && m_selectedCategory < (int)m_categoryScrollX.size()) {
-            m_categoryScrollX[m_selectedCategory] += stickX * 10.0f;
+            m_categoryScrollX[m_selectedCategory] += stickX * 15.0f; // Slightly faster horizontal scroll
             m_categoryScrollX[m_selectedCategory] = std::max(0.0f, m_categoryScrollX[m_selectedCategory]);
         }
         
@@ -122,88 +132,118 @@ void GamesScreen::handleInput(const Input& input) {
     }
     
     // -------------------------------------------------------------------------
-    // Touch handling - supports both store and installed views
+    // TOUCH HANDLING IMPLEMETATION
+    // Modeled after iOS UIScrollView physics and hit testing
     // -------------------------------------------------------------------------
     const auto& touch = input.getTouch();
+    
     if (touch.touching) {
+        // Direct manipulation: 1:1 finger tracking
         m_scrollY -= touch.deltaY;
-        m_scrollVelocity = 0.0f;
+        m_scrollVelocity = 0.0f; // Reset velocity during drag
     } else if (touch.justReleased) {
-        // Calculate drag distance to determine if this is a tap
+        // Calculate drag distance to distinguish tap from scroll
         float dragDist = std::sqrt((touch.x - touch.startX) * (touch.x - touch.startX) +
                                    (touch.y - touch.startY) * (touch.y - touch.startY));
         
-        // Tap detection threshold - less than 30 pixels of movement
+        // Tap threshold: < 30px (standard hitbox fuzziness)
         if (dragDist < 30.0f) {
+            float contentY = HEADER_HEIGHT - m_scrollY;
+            float tapX = touch.x;
+            float tapY = touch.y;
+
             if (m_showingInstalled) {
                 // -------------------------------------------------------------
-                // Tap on installed games list
+                // Tap on INSTALLED GAMES list
                 // -------------------------------------------------------------
-                float contentY = HEADER_HEIGHT - m_scrollY;
-                float tapY = touch.y;
                 float itemHeight = 88.0f;
                 
                 if (tapY > HEADER_HEIGHT && tapY < 720.0f - 70.0f) {
+                    // Calculate index relative to scroll
                     int tappedIndex = static_cast<int>((tapY - contentY) / itemHeight);
                     
                     if (tappedIndex >= 0 && tappedIndex < static_cast<int>(m_installedGames.size())) {
+                        // Check for delete button tap if already selected
+                        bool hitDelete = false;
                         if (tappedIndex == m_selectedInstalledGame) {
-                            // Double tap - delete
-                            deleteSelectedGame();
-                        } else {
-                            m_selectedInstalledGame = tappedIndex;
+                            float btnX = 1280 - SIDE_PADDING - 70;
+                            float btnY = contentY + tappedIndex * itemHeight + 28;
+                            // Hit test delete button rect
+                            if (tapX >= btnX - 10 && tapX <= btnX + 70 && 
+                                tapY >= btnY - 10 && tapY <= btnY + 42) {
+                                deleteSelectedGame();
+                                hitDelete = true;
+                            }
+                        }
+
+                        if (!hitDelete) {
+                            if (tappedIndex == m_selectedInstalledGame) {
+                                // Second tap -> Open/Launch (Feature for later)
+                                // deleteSelectedGame(); // Don't delete on double tap, unsafe
+                            } else {
+                                m_selectedInstalledGame = tappedIndex;
+                            }
                         }
                     }
                 }
             } else {
                 // -------------------------------------------------------------
-                // Tap on store game cards - find which game was tapped
-                // This enables touch-based game selection
+                // Tap on STORE CONTENT
                 // -------------------------------------------------------------
-                float tapX = touch.x;
-                float tapY = touch.y;
-                
-                // Only process taps in the content area (below header, above tab bar)
+                // Only process taps in the scrollable content area
                 if (tapY > HEADER_HEIGHT && tapY < 720.0f - TAB_BAR_HEIGHT) {
-                    float contentY = HEADER_HEIGHT - m_scrollY;
                     
-                    // Iterate through categories to find which one was tapped
+                    // Iterate categories to find what was tapped
+                    // We must replicate the layout logic to find exact rects
+                    float currentY = contentY;
+                    
                     for (size_t catIdx = 0; catIdx < m_categories.size(); catIdx++) {
-                        float catY = contentY + catIdx * 280.0f;
-                        float gamesY = catY + 40.0f;  // Games row starts after title
-                        
-                        // Check if tap is within this category's game row
-                        if (tapY >= gamesY && tapY < gamesY + GAME_CARD_SIZE + 60) {
+                        // "View All" Button Hit Test
+                        // Rect: Right side, aligned with category title
+                        // Area: ~150px wide, ~40px high
+                        float viewAllX = 1280 - SIDE_PADDING - 120;
+                        if (tapY >= currentY - 10 && tapY <= currentY + 40 &&
+                            tapX >= viewAllX) {
+                             // User tapped "View All"
+                             // TODO: Navigate to CategoryDetailScreen
+                             // For now, we flash selection to show responsiveness
+                             m_selectedCategory = static_cast<int>(catIdx);
+                             // Notification or Navigation would go here
+                             break;
+                        }
+
+                        // Game Row Hit Test
+                        float gamesY = currentY + 40.0f;
+                        if (tapY >= gamesY && tapY < gamesY + GAME_CARD_SIZE + 20) {
                             // Get horizontal scroll for this category
                             float scrollX = (catIdx < m_categoryScrollX.size()) ? 
                                            m_categoryScrollX[catIdx] : 0.0f;
                             
-                            // Calculate which game card was tapped
                             float gameAreaX = SIDE_PADDING - scrollX;
                             
                             for (size_t gameIdx = 0; gameIdx < m_categories[catIdx].games.size(); gameIdx++) {
                                 float cardX = gameAreaX + gameIdx * (GAME_CARD_SIZE + CARD_SPACING);
                                 float cardRight = cardX + GAME_CARD_SIZE;
                                 
-                                // Check if tap is within this card
                                 if (tapX >= cardX && tapX <= cardRight) {
-                                    // Select this game
                                     m_selectedCategory = static_cast<int>(catIdx);
                                     m_selectedGame = static_cast<int>(gameIdx);
-                                    
-                                    // TODO: If already selected, navigate to detail
-                                    // For now just update selection
+                                    // TODO: Open Game Detail
                                     break;
                                 }
                             }
-                            break;  // Found the category, stop searching
+                            break; // Handled this category row
                         }
+                        
+                        // Advance Y offset for next iteration (Title + Games + Padding)
+                        currentY += 40.0f + GAME_CARD_SIZE + 60.0f;
                     }
                 }
             }
         } else {
-            // Not a tap - apply fling velocity for momentum scrolling
-            m_scrollVelocity = -touch.velocityY * 30.0f;
+            // Fling Gesture (Inertia)
+            // Apply a "Spring" feel by multiplying velocity
+            m_scrollVelocity = -touch.velocityY * 35.0f; 
         }
     }
 }
@@ -292,7 +332,7 @@ void GamesScreen::renderHeader(Renderer& renderer) {
 }
 
 void GamesScreen::renderCategory(Renderer& renderer, const GameCategory& category,
-                                  float& yOffset, int categoryIndex) {
+                                  float yOffset, int categoryIndex) {
     Theme* theme = m_app->getTheme();
     
     // Category header

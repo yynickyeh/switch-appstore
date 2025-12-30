@@ -54,9 +54,9 @@ private:
     // -------------------------------------------------------------------------
     
     void renderSearchBar(Renderer& renderer);
-    void renderHotTags(Renderer& renderer);
-    void renderRecommendations(Renderer& renderer);
-    void renderSearchResults(Renderer& renderer);
+    void renderHotTags(Renderer& renderer, float yOffset);
+    void renderRecommendations(Renderer& renderer, float yOffset);
+    void renderSearchResults(Renderer& renderer, float yOffset);
     void performSearch(const std::string& query);
     void loadDemoContent();
     void showKeyboard();  // Show Switch software keyboard
@@ -85,4 +85,5 @@ private:
     
     // Scroll
     float m_scrollY = 0.0f;
+    float m_scrollVelocity = 0.0f;
 };

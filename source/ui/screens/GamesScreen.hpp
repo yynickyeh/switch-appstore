@@ -92,7 +92,7 @@ private:
     
     void renderHeader(Renderer& renderer);
     void renderCategory(Renderer& renderer, const GameCategory& category, 
-                        float& yOffset, int categoryIndex);
+                        float yOffset, int categoryIndex);
     void renderGameCard(Renderer& renderer, const GameItem& game, 
                         float x, float y, bool isSelected);
     void loadDemoContent();
