@@ -121,35 +121,88 @@ void GamesScreen::handleInput(const Input& input) {
         }
     }
     
-    // Touch handling
+    // -------------------------------------------------------------------------
+    // Touch handling - supports both store and installed views
+    // -------------------------------------------------------------------------
     const auto& touch = input.getTouch();
     if (touch.touching) {
         m_scrollY -= touch.deltaY;
         m_scrollVelocity = 0.0f;
     } else if (touch.justReleased) {
-        // Check if it was a tap
+        // Calculate drag distance to determine if this is a tap
         float dragDist = std::sqrt((touch.x - touch.startX) * (touch.x - touch.startX) +
                                    (touch.y - touch.startY) * (touch.y - touch.startY));
         
-        if (dragDist < 30.0f && m_showingInstalled) {
-            // Tap on installed games list
-            float contentY = HEADER_HEIGHT - m_scrollY;
-            float tapY = touch.y;
-            float itemHeight = 88.0f;
-            
-            if (tapY > HEADER_HEIGHT && tapY < 720.0f - 70.0f) {
-                int tappedIndex = static_cast<int>((tapY - contentY) / itemHeight);
+        // Tap detection threshold - less than 30 pixels of movement
+        if (dragDist < 30.0f) {
+            if (m_showingInstalled) {
+                // -------------------------------------------------------------
+                // Tap on installed games list
+                // -------------------------------------------------------------
+                float contentY = HEADER_HEIGHT - m_scrollY;
+                float tapY = touch.y;
+                float itemHeight = 88.0f;
                 
-                if (tappedIndex >= 0 && tappedIndex < static_cast<int>(m_installedGames.size())) {
-                    if (tappedIndex == m_selectedInstalledGame) {
-                        // Double tap - delete
-                        deleteSelectedGame();
-                    } else {
-                        m_selectedInstalledGame = tappedIndex;
+                if (tapY > HEADER_HEIGHT && tapY < 720.0f - 70.0f) {
+                    int tappedIndex = static_cast<int>((tapY - contentY) / itemHeight);
+                    
+                    if (tappedIndex >= 0 && tappedIndex < static_cast<int>(m_installedGames.size())) {
+                        if (tappedIndex == m_selectedInstalledGame) {
+                            // Double tap - delete
+                            deleteSelectedGame();
+                        } else {
+                            m_selectedInstalledGame = tappedIndex;
+                        }
+                    }
+                }
+            } else {
+                // -------------------------------------------------------------
+                // Tap on store game cards - find which game was tapped
+                // This enables touch-based game selection
+                // -------------------------------------------------------------
+                float tapX = touch.x;
+                float tapY = touch.y;
+                
+                // Only process taps in the content area (below header, above tab bar)
+                if (tapY > HEADER_HEIGHT && tapY < 720.0f - TAB_BAR_HEIGHT) {
+                    float contentY = HEADER_HEIGHT - m_scrollY;
+                    
+                    // Iterate through categories to find which one was tapped
+                    for (size_t catIdx = 0; catIdx < m_categories.size(); catIdx++) {
+                        float catY = contentY + catIdx * 280.0f;
+                        float gamesY = catY + 40.0f;  // Games row starts after title
+                        
+                        // Check if tap is within this category's game row
+                        if (tapY >= gamesY && tapY < gamesY + GAME_CARD_SIZE + 60) {
+                            // Get horizontal scroll for this category
+                            float scrollX = (catIdx < m_categoryScrollX.size()) ? 
+                                           m_categoryScrollX[catIdx] : 0.0f;
+                            
+                            // Calculate which game card was tapped
+                            float gameAreaX = SIDE_PADDING - scrollX;
+                            
+                            for (size_t gameIdx = 0; gameIdx < m_categories[catIdx].games.size(); gameIdx++) {
+                                float cardX = gameAreaX + gameIdx * (GAME_CARD_SIZE + CARD_SPACING);
+                                float cardRight = cardX + GAME_CARD_SIZE;
+                                
+                                // Check if tap is within this card
+                                if (tapX >= cardX && tapX <= cardRight) {
+                                    // Select this game
+                                    m_selectedCategory = static_cast<int>(catIdx);
+                                    m_selectedGame = static_cast<int>(gameIdx);
+                                    
+                                    // TODO: If already selected, navigate to detail
+                                    // For now just update selection
+                                    break;
+                                }
+                            }
+                            break;  // Found the category, stop searching
+                        }
                     }
                 }
             }
         } else {
+            // Not a tap - apply fling velocity for momentum scrolling
             m_scrollVelocity = -touch.velocityY * 30.0f;
         }
     }
@@ -429,10 +482,25 @@ void GamesScreen::deleteSelectedGame() {
 // =============================================================================
 
 void GamesScreen::loadDemoContent() {
+    // -------------------------------------------------------------------------
+    // Load game content from StoreManager
+    // Note: This screen only shows "games" category, not tools/emulators
+    // Tools and Emulators have their own dedicated screens
+    // -------------------------------------------------------------------------
     StoreManager& store = StoreManager::getInstance();
     const auto& categories = store.getCategories();
     
     for (const auto& storeCategory : categories) {
+        // ---------------------------------------------------------------------
+        // Filter: Only show "games" category on this screen
+        // "emulators" goes to EmulatorsScreen
+        // "tools" goes to ToolsScreen
+        // "homebrew" is general apps, could be considered for separate screen
+        // ---------------------------------------------------------------------
+        if (storeCategory.id != "games") {
+            continue;  // Skip non-game categories
+        }
+        
         auto entries = store.getEntriesByCategory(storeCategory.id);
         
         if (entries.empty()) continue;
@@ -457,3 +525,4 @@ void GamesScreen::loadDemoContent() {
         m_categoryScrollX.push_back(0.0f);
     }
 }
+

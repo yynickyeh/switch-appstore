@@ -30,6 +30,7 @@ struct GameItem {
     std::string iconUrl;
     float rating = 0.0f;
     std::string size;
+    int downloadCount = 0;  // Download count from server
 };
 
 // =============================================================================

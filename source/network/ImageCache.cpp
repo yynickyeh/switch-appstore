@@ -1,6 +1,9 @@
 // =============================================================================
 // Switch App Store - Image Cache Implementation
 // =============================================================================
+// Implements LRU (Least Recently Used) cache eviction strategy
+// Tracks image loading states and provides callbacks for UI updates
+// =============================================================================
 
 #include "ImageCache.hpp"
 #include <SDL2/SDL_image.h>
@@ -35,14 +38,13 @@ void ImageCache::init(SDL_Renderer* renderer, const std::string& cacheDir) {
 }
 
 void ImageCache::shutdown() {
-    // Free all cached textures
-    for (auto& pair : m_memoryCache) {
-        if (pair.second) {
-            SDL_DestroyTexture(pair.second);
+    // Free all cached textures from the new CacheEntry structure
+    for (auto& pair : m_cacheEntries) {
+        if (pair.second.texture) {
+            SDL_DestroyTexture(pair.second.texture);
         }
     }
-    m_memoryCache.clear();
-    m_textureSizes.clear();
+    m_cacheEntries.clear();
     m_currentCacheSize = 0;
     m_httpClient.reset();
 }
@@ -52,27 +54,51 @@ void ImageCache::shutdown() {
 // =============================================================================
 
 SDL_Texture* ImageCache::getCached(const std::string& url) {
-    auto it = m_memoryCache.find(url);
-    if (it != m_memoryCache.end()) {
-        return it->second;
+    // -------------------------------------------------------------------------
+    // Look up the cache entry and update its LRU timestamp if found
+    // This is the core of the LRU algorithm - recently accessed items
+    // get their timestamp updated so they're less likely to be evicted
+    // -------------------------------------------------------------------------
+    auto it = m_cacheEntries.find(url);
+    if (it != m_cacheEntries.end() && it->second.texture) {
+        // Update last access time for LRU tracking
+        it->second.lastAccess = getCurrentTimestamp();
+        return it->second.texture;
     }
     return nullptr;
 }
 
 void ImageCache::requestImage(const std::string& url) {
-    // Check if already cached
-    if (m_memoryCache.find(url) != m_memoryCache.end()) {
+    // Check if already cached and loaded
+    auto cacheIt = m_cacheEntries.find(url);
+    if (cacheIt != m_cacheEntries.end() && 
+        cacheIt->second.state == ImageLoadState::Loaded) {
         return;
     }
     
-    // Check if already queued
+    // Check if already queued for loading
     if (m_loadingUrls.find(url) != m_loadingUrls.end()) {
         return;
     }
     
-    // Add to queue
+    // -------------------------------------------------------------------------
+    // Create a new cache entry with Loading state
+    // This allows UI components to show loading indicators
+    // -------------------------------------------------------------------------
+    CacheEntry entry;
+    entry.state = ImageLoadState::Loading;
+    entry.insertTime = getCurrentTimestamp();
+    entry.lastAccess = entry.insertTime;
+    m_cacheEntries[url] = entry;
+    
+    // Add to load queue
     m_loadQueue.push(url);
     m_loadingUrls[url] = true;
+    
+    // Notify listeners that loading has started
+    if (m_stateCallback) {
+        m_stateCallback(url, ImageLoadState::Loading);
+    }
 }
 
 SDL_Texture* ImageCache::loadSync(const std::string& url) {
@@ -87,16 +113,58 @@ SDL_Texture* ImageCache::loadSync(const std::string& url) {
         // File exists in cache, load it
         SDL_Texture* tex = loadFromFile(cachePath);
         if (tex) {
-            m_memoryCache[url] = tex;
+            // -------------------------------------------------------------------------
+            // Create cache entry with all LRU metadata
+            // -------------------------------------------------------------------------
+            CacheEntry entry;
+            entry.texture = tex;
+            entry.state = ImageLoadState::Loaded;
+            
+            // Calculate texture size for memory tracking
+            int w, h;
+            SDL_QueryTexture(tex, nullptr, nullptr, &w, &h);
+            entry.size = w * h * 4;  // Approximate RGBA size
+            
+            uint64_t now = getCurrentTimestamp();
+            entry.insertTime = now;
+            entry.lastAccess = now;
+            
+            m_cacheEntries[url] = entry;
+            m_currentCacheSize += entry.size;
+            
+            // Notify listeners
+            if (m_stateCallback) {
+                m_stateCallback(url, ImageLoadState::Loaded);
+            }
+            
+            evictIfNeeded();
             return tex;
         }
     }
     
     // Download from network
-    if (!m_httpClient) return nullptr;
+    if (!m_httpClient) {
+        // Mark as failed if we can't download
+        if (m_cacheEntries.find(url) != m_cacheEntries.end()) {
+            m_cacheEntries[url].state = ImageLoadState::Failed;
+        }
+        if (m_stateCallback) {
+            m_stateCallback(url, ImageLoadState::Failed);
+        }
+        return nullptr;
+    }
     
     std::vector<uint8_t> data = m_httpClient->downloadData(url);
-    if (data.empty()) return nullptr;
+    if (data.empty()) {
+        // Mark as failed
+        if (m_cacheEntries.find(url) != m_cacheEntries.end()) {
+            m_cacheEntries[url].state = ImageLoadState::Failed;
+        }
+        if (m_stateCallback) {
+            m_stateCallback(url, ImageLoadState::Failed);
+        }
+        return nullptr;
+    }
     
     // Save to disk cache
     FILE* file = fopen(cachePath.c_str(), "wb");
@@ -108,16 +176,39 @@ SDL_Texture* ImageCache::loadSync(const std::string& url) {
     // Load into texture
     SDL_Texture* tex = loadFromMemory(data.data(), data.size());
     if (tex) {
-        m_memoryCache[url] = tex;
+        // -------------------------------------------------------------------------
+        // Create cache entry with full LRU metadata
+        // -------------------------------------------------------------------------
+        CacheEntry entry;
+        entry.texture = tex;
+        entry.state = ImageLoadState::Loaded;
         
-        // Track size
+        // Calculate and track texture size
         int w, h;
         SDL_QueryTexture(tex, nullptr, nullptr, &w, &h);
-        size_t size = w * h * 4;  // Approximate RGBA size
-        m_textureSizes[url] = size;
-        m_currentCacheSize += size;
+        entry.size = w * h * 4;  // Approximate RGBA size
+        
+        uint64_t now = getCurrentTimestamp();
+        entry.insertTime = now;
+        entry.lastAccess = now;
+        
+        m_cacheEntries[url] = entry;
+        m_currentCacheSize += entry.size;
+        
+        // Notify listeners
+        if (m_stateCallback) {
+            m_stateCallback(url, ImageLoadState::Loaded);
+        }
         
         evictIfNeeded();
+    } else {
+        // Mark as failed if texture creation failed
+        if (m_cacheEntries.find(url) != m_cacheEntries.end()) {
+            m_cacheEntries[url].state = ImageLoadState::Failed;
+        }
+        if (m_stateCallback) {
+            m_stateCallback(url, ImageLoadState::Failed);
+        }
     }
     
     return tex;
@@ -170,13 +261,12 @@ void ImageCache::processOne() {
 // =============================================================================
 
 void ImageCache::clearMemoryCache() {
-    for (auto& pair : m_memoryCache) {
-        if (pair.second) {
-            SDL_DestroyTexture(pair.second);
+    for (auto& pair : m_cacheEntries) {
+        if (pair.second.texture) {
+            SDL_DestroyTexture(pair.second.texture);
         }
     }
-    m_memoryCache.clear();
-    m_textureSizes.clear();
+    m_cacheEntries.clear();
     m_currentCacheSize = 0;
 }
 
@@ -189,23 +279,45 @@ size_t ImageCache::getMemoryCacheSize() const {
     return m_currentCacheSize;
 }
 
+ImageLoadState ImageCache::getLoadState(const std::string& url) const {
+    auto it = m_cacheEntries.find(url);
+    if (it != m_cacheEntries.end()) {
+        return it->second.state;
+    }
+    return ImageLoadState::Idle;
+}
+
 void ImageCache::evictIfNeeded() {
-    // Simple LRU-ish eviction: just remove oldest entries
-    // Real implementation would track access times
-    while (m_currentCacheSize > m_maxMemoryCacheSize && !m_memoryCache.empty()) {
-        auto it = m_memoryCache.begin();
-        
-        if (it->second) {
-            SDL_DestroyTexture(it->second);
+    // -------------------------------------------------------------------------
+    // LRU (Least Recently Used) Cache Eviction
+    // When cache exceeds the maximum size, we find and remove the entry
+    // with the oldest (smallest) lastAccess timestamp
+    // -------------------------------------------------------------------------
+    while (m_currentCacheSize > m_maxMemoryCacheSize && !m_cacheEntries.empty()) {
+        // Find the least recently used entry
+        auto oldest = m_cacheEntries.begin();
+        for (auto it = m_cacheEntries.begin(); it != m_cacheEntries.end(); ++it) {
+            // Skip entries that are still loading
+            if (it->second.state == ImageLoadState::Loading) continue;
+            
+            if (it->second.lastAccess < oldest->second.lastAccess) {
+                oldest = it;
+            }
         }
         
-        auto sizeIt = m_textureSizes.find(it->first);
-        if (sizeIt != m_textureSizes.end()) {
-            m_currentCacheSize -= sizeIt->second;
-            m_textureSizes.erase(sizeIt);
+        // If we only have loading entries, don't evict
+        if (oldest->second.state == ImageLoadState::Loading) {
+            break;
         }
         
-        m_memoryCache.erase(it);
+        // Free the texture
+        if (oldest->second.texture) {
+            SDL_DestroyTexture(oldest->second.texture);
+        }
+        
+        // Update cache size and remove entry
+        m_currentCacheSize -= oldest->second.size;
+        m_cacheEntries.erase(oldest);
     }
 }
 
@@ -213,12 +325,24 @@ void ImageCache::evictIfNeeded() {
 // Helpers
 // =============================================================================
 
+uint64_t ImageCache::getCurrentTimestamp() const {
+    // -------------------------------------------------------------------------
+    // Get current time in milliseconds since epoch
+    // Using steady_clock for monotonic timing (not affected by system time changes)
+    // -------------------------------------------------------------------------
+    return static_cast<uint64_t>(
+        std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now().time_since_epoch()
+        ).count()
+    );
+}
+
 std::string ImageCache::getCachePath(const std::string& url) const {
     return m_cacheDir + "/" + hashUrl(url);
 }
 
 std::string ImageCache::hashUrl(const std::string& url) const {
-    // Simple hash for filename
+    // Simple DJB2 hash for filename
     // Real implementation would use proper hash like SHA256
     unsigned long hash = 5381;
     for (char c : url) {
@@ -233,6 +357,7 @@ std::string ImageCache::hashUrl(const std::string& url) const {
     size_t dotPos = url.rfind('.');
     if (dotPos != std::string::npos) {
         std::string urlExt = url.substr(dotPos);
+        // Only use recognized image extensions
         if (urlExt == ".jpg" || urlExt == ".jpeg" || 
             urlExt == ".png" || urlExt == ".webp") {
             ext = urlExt;

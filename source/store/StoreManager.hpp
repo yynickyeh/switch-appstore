@@ -139,6 +139,22 @@ public:
     using RefreshCallback = std::function<void(bool success, const std::string& error)>;
     void setOnRefreshComplete(RefreshCallback callback) { m_onRefreshComplete = callback; }
     
+    // -------------------------------------------------------------------------
+    // Download Statistics
+    // -------------------------------------------------------------------------
+    
+    // Callback for download report: (success, newDownloadCount)
+    using DownloadReportCallback = std::function<void(bool success, int newCount)>;
+    
+    // Report a download to the server - this increments the download counter
+    // on the server and updates the local entry's downloadCount
+    // The callback is optional but useful for UI updates
+    void reportDownload(const std::string& gameId, 
+                        DownloadReportCallback callback = nullptr);
+    
+    // Update local entry's download count (called internally after successful report)
+    void updateLocalDownloadCount(const std::string& gameId, int newCount);
+    
 private:
     StoreManager() = default;
     ~StoreManager() = default;

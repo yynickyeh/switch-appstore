@@ -3,11 +3,13 @@
 // =============================================================================
 // Displays images loaded from network or local storage
 // Supports async loading with placeholder, rounded corners, and fit modes
+// Integrates with ImageCache for automatic loading and state tracking
 // =============================================================================
 
 #pragma once
 
 #include "ui/Component.hpp"
+#include "network/ImageCache.hpp"  // For ImageLoadState
 #include <string>
 
 // =============================================================================
@@ -21,7 +23,7 @@ enum class ImageFit {
 };
 
 // =============================================================================
-// Image - Image display component
+// Image - Image display component with loading animation support
 // =============================================================================
 class Image : public Component {
 public:
@@ -66,6 +68,17 @@ public:
     // Is the image loaded?
     bool isLoaded() const { return m_texture != nullptr; }
     
+    // Get current load state
+    ImageLoadState getLoadState() const { return m_loadState; }
+    
+    // Enable/disable loading animation
+    void setShowLoadingAnimation(bool show) { m_showLoadingAnimation = show; }
+    bool getShowLoadingAnimation() const { return m_showLoadingAnimation; }
+    
+    // Enable/disable error placeholder
+    void setShowErrorPlaceholder(bool show) { m_showErrorPlaceholder = show; }
+    bool getShowErrorPlaceholder() const { return m_showErrorPlaceholder; }
+    
 private:
     std::string m_url;
     SDL_Texture* m_texture = nullptr;
@@ -74,10 +87,22 @@ private:
     int m_cornerRadius = 0;
     Color m_placeholderColor{200, 200, 200, 255};
     
-    // Loading state
-    bool m_isLoading = false;
-    float m_loadingAnimation = 0.0f;
+    // Loading state - integrated with ImageCache
+    ImageLoadState m_loadState = ImageLoadState::Idle;
+    bool m_showLoadingAnimation = true;
+    bool m_showErrorPlaceholder = true;
+    float m_loadingSpinAngle = 0.0f;
+    
+    // Fade-in animation when image loads
+    float m_fadeInProgress = 0.0f;
+    bool m_useFadeIn = true;
     
     // Calculate source and destination rects based on fit mode
     void calculateRects(Rect& srcRect, Rect& dstRect, int texW, int texH);
+    
+    // Render different states
+    void renderPlaceholder(Renderer& renderer, Theme& theme);
+    void renderLoadingAnimation(Renderer& renderer, Theme& theme);
+    void renderErrorPlaceholder(Renderer& renderer, Theme& theme);
 };
+

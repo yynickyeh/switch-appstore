@@ -6,6 +6,7 @@
 #include "app.hpp"
 #include "core/Input.hpp"
 #include "ui/Theme.hpp"
+#include "store/StoreManager.hpp"  // For download statistics
 #include <algorithm>
 #include <cmath>
 
@@ -355,6 +356,23 @@ void DetailScreen::renderInstallButton(Renderer& renderer) {
 void DetailScreen::startDownload() {
     m_detail.isDownloading = true;
     m_detail.downloadProgress = 0.0f;
+    
+    // -------------------------------------------------------------------------
+    // Report this download to the server to increment the download counter
+    // This helps track popularity and provides analytics data
+    // -------------------------------------------------------------------------
+    StoreManager::getInstance().reportDownload(
+        m_detail.basic.id,
+        [this](bool success, int newCount) {
+            if (success) {
+                // Update the local display with the new download count
+                // This keeps the UI in sync with server data
+                m_detail.basic.downloadCount = newCount;
+            }
+            // Note: Download continues regardless of statistics report success
+        }
+    );
+    
     // TODO: Start actual download via Downloader
 }
 

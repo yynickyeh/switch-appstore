@@ -358,3 +358,76 @@ void StoreManager::addDefaultSource() {
     
     m_sources.push_back(defaultSource);
 }
+
+// =============================================================================
+// Download Statistics
+// =============================================================================
+
+void StoreManager::reportDownload(const std::string& gameId, 
+                                   DownloadReportCallback callback) {
+    // -------------------------------------------------------------------------
+    // Send POST request to /api/catalog/download/:gameId to increment
+    // the server-side download counter. Upon success, update local entry.
+    // -------------------------------------------------------------------------
+    
+    if (!m_httpClient) {
+        if (callback) callback(false, 0);
+        return;
+    }
+    
+    // Find the first enabled source to get the base URL
+    std::string baseUrl;
+    for (const auto& source : m_sources) {
+        if (source.enabled && !source.url.empty()) {
+            baseUrl = source.url;
+            break;
+        }
+    }
+    
+    if (baseUrl.empty()) {
+        if (callback) callback(false, 0);
+        return;
+    }
+    
+    // Construct the API endpoint URL
+    std::string apiUrl = baseUrl + "/api/catalog/download/" + gameId;
+    
+    // Send POST request (empty body for this endpoint)
+    HttpResponse response = m_httpClient->post(apiUrl, "{}");
+    
+    if (response.isSuccess()) {
+        // -------------------------------------------------------------------------
+        // Parse the response JSON to extract the new download count
+        // Expected format: { success: true, data: { newDownloadCount: N } }
+        // -------------------------------------------------------------------------
+        json::Value root = json::parse(response.body);
+        
+        if (root["success"].asBool(false)) {
+            const json::Value& data = root["data"];
+            int newCount = data["newDownloadCount"].asInt(0);
+            
+            // Update local entry with new count
+            updateLocalDownloadCount(gameId, newCount);
+            
+            if (callback) callback(true, newCount);
+            return;
+        }
+    }
+    
+    // Failed - call callback with failure
+    if (callback) callback(false, 0);
+}
+
+void StoreManager::updateLocalDownloadCount(const std::string& gameId, int newCount) {
+    // -------------------------------------------------------------------------
+    // Find and update the local entry's download count
+    // This keeps the local cache in sync with server data
+    // -------------------------------------------------------------------------
+    for (auto& entry : m_entries) {
+        if (entry.id == gameId) {
+            entry.downloadCount = newCount;
+            break;
+        }
+    }
+}
+
