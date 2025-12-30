@@ -105,6 +105,9 @@ public:
     void setScale(float scale) { m_scale = scale; }
     float getScale() const { return m_scale; }
     
+    // Access underlying SDL renderer (for texture creation, etc.)
+    SDL_Renderer* getSDLRenderer() const { return m_sdlRenderer; }
+    
     // -------------------------------------------------------------------------
     // Basic drawing operations
     // -------------------------------------------------------------------------

@@ -1,13 +1,18 @@
 // =============================================================================
 // Switch App Store - Games Screen Implementation
 // =============================================================================
+// Shows game categories from store + installed games section
+// =============================================================================
 
 #include "GamesScreen.hpp"
 #include "app.hpp"
 #include "core/Input.hpp"
+#include "core/TitleManager.hpp"
 #include "ui/Theme.hpp"
+#include "store/StoreManager.hpp"
 #include <algorithm>
 #include <cmath>
+#include <switch.h>
 
 // =============================================================================
 // Constructor & Destructor
@@ -19,7 +24,14 @@ GamesScreen::GamesScreen(App* app)
     loadDemoContent();
 }
 
-GamesScreen::~GamesScreen() = default;
+GamesScreen::~GamesScreen() {
+    // Cleanup installed game textures
+    for (auto& game : m_installedGames) {
+        if (game.icon) {
+            SDL_DestroyTexture(game.icon);
+        }
+    }
+}
 
 // =============================================================================
 // Lifecycle
@@ -30,6 +42,7 @@ void GamesScreen::onEnter() {
     m_scrollVelocity = 0.0f;
     m_selectedCategory = 0;
     m_selectedGame = 0;
+    m_selectedInstalledGame = 0;
 }
 
 void GamesScreen::onExit() {
@@ -45,58 +58,75 @@ void GamesScreen::onResolutionChanged(int width, int height, float scale) {
 // =============================================================================
 
 void GamesScreen::handleInput(const Input& input) {
+    // Y button to toggle between store and installed view
+    if (input.isPressed(Input::Button::Y)) {
+        m_showingInstalled = !m_showingInstalled;
+        m_selectedInstalledGame = 0;
+        m_selectedCategory = 0;
+        m_selectedGame = 0;
+        return;
+    }
+    
+    // X button to delete (when showing installed)
+    if (m_showingInstalled && input.isPressed(Input::Button::X)) {
+        deleteSelectedGame();
+        return;
+    }
+    
     // Vertical scrolling with analog stick
     float stickY = input.getLeftStick().y;
     if (stickY != 0.0f) {
         m_scrollVelocity = -stickY * 500.0f;
     }
     
-    // Horizontal scroll for current category
-    float stickX = input.getLeftStick().x;
-    if (stickX != 0.0f && m_selectedCategory < (int)m_categoryScrollX.size()) {
-        m_categoryScrollX[m_selectedCategory] += stickX * 10.0f;
-        // Clamp
-        m_categoryScrollX[m_selectedCategory] = std::max(0.0f, m_categoryScrollX[m_selectedCategory]);
-    }
-    
     // D-pad navigation
-    if (input.isPressed(Input::Button::DPadUp)) {
-        if (m_selectedCategory > 0) {
-            m_selectedCategory--;
-            m_selectedGame = 0;
+    if (m_showingInstalled) {
+        // Navigate installed games list
+        if (input.isPressed(Input::Button::DPadUp)) {
+            if (m_selectedInstalledGame > 0) m_selectedInstalledGame--;
         }
-    }
-    if (input.isPressed(Input::Button::DPadDown)) {
-        if (m_selectedCategory < (int)m_categories.size() - 1) {
-            m_selectedCategory++;
-            m_selectedGame = 0;
+        if (input.isPressed(Input::Button::DPadDown)) {
+            if (m_selectedInstalledGame < static_cast<int>(m_installedGames.size()) - 1) {
+                m_selectedInstalledGame++;
+            }
         }
-    }
-    if (input.isPressed(Input::Button::DPadLeft)) {
-        if (m_selectedGame > 0) {
-            m_selectedGame--;
+    } else {
+        // Navigate store categories
+        float stickX = input.getLeftStick().x;
+        if (stickX != 0.0f && m_selectedCategory < (int)m_categoryScrollX.size()) {
+            m_categoryScrollX[m_selectedCategory] += stickX * 10.0f;
+            m_categoryScrollX[m_selectedCategory] = std::max(0.0f, m_categoryScrollX[m_selectedCategory]);
         }
-    }
-    if (input.isPressed(Input::Button::DPadRight)) {
-        if (m_selectedCategory < (int)m_categories.size() &&
-            m_selectedGame < (int)m_categories[m_selectedCategory].games.size() - 1) {
-            m_selectedGame++;
+        
+        if (input.isPressed(Input::Button::DPadUp)) {
+            if (m_selectedCategory > 0) {
+                m_selectedCategory--;
+                m_selectedGame = 0;
+            }
+        }
+        if (input.isPressed(Input::Button::DPadDown)) {
+            if (m_selectedCategory < (int)m_categories.size() - 1) {
+                m_selectedCategory++;
+                m_selectedGame = 0;
+            }
+        }
+        if (input.isPressed(Input::Button::DPadLeft)) {
+            if (m_selectedGame > 0) m_selectedGame--;
+        }
+        if (input.isPressed(Input::Button::DPadRight)) {
+            if (m_selectedCategory < (int)m_categories.size() &&
+                m_selectedGame < (int)m_categories[m_selectedCategory].games.size() - 1) {
+                m_selectedGame++;
+            }
         }
     }
     
-    // A button to select game (navigate to detail)
-    if (input.isPressed(Input::Button::A)) {
-        // TODO: Navigate to DetailScreen
-    }
-    
-    // Touch scrolling - direct 1:1 mapping for responsiveness
+    // Touch scrolling
     const auto& touch = input.getTouch();
     if (touch.touching) {
-        // Direct scroll with touch delta
-        m_scrollY -= touch.deltaY;  // Direct 1:1 scroll
-        m_scrollVelocity = 0.0f;    // Stop inertia while touching
+        m_scrollY -= touch.deltaY;
+        m_scrollVelocity = 0.0f;
     } else if (touch.justReleased) {
-        // Apply momentum from touch velocity
         m_scrollVelocity = -touch.velocityY * 30.0f;
     }
 }
@@ -106,10 +136,10 @@ void GamesScreen::handleInput(const Input& input) {
 // =============================================================================
 
 void GamesScreen::update(float deltaTime) {
-    // Apply scroll velocity (momentum scrolling)
+    // Apply scroll velocity
     if (m_scrollVelocity != 0.0f) {
         m_scrollY += m_scrollVelocity * deltaTime;
-        m_scrollVelocity *= 0.92f;  // Smoother friction
+        m_scrollVelocity *= 0.92f;
         
         if (std::abs(m_scrollVelocity) < 1.0f) {
             m_scrollVelocity = 0.0f;
@@ -117,7 +147,9 @@ void GamesScreen::update(float deltaTime) {
     }
     
     // Clamp scroll bounds
-    float maxScroll = m_categories.size() * 280.0f - 400.0f;
+    float maxScroll = m_showingInstalled ? 
+                      m_installedGames.size() * 88.0f - 400.0f :
+                      m_categories.size() * 280.0f - 400.0f;
     if (m_scrollY < 0.0f) {
         m_scrollY *= 0.9f;
     }
@@ -132,16 +164,27 @@ void GamesScreen::update(float deltaTime) {
 
 void GamesScreen::render(Renderer& renderer) {
     Theme* theme = m_app->getTheme();
-    (void)theme;  // Used in child methods
+    (void)theme;
+    
+    // Load installed games lazily
+    if (!m_installedLoaded) {
+        loadInstalledGames(renderer);
+        m_installedLoaded = true;
+    }
     
     float contentY = HEADER_HEIGHT - m_scrollY;
     
-    // Render each category section
-    for (size_t i = 0; i < m_categories.size(); i++) {
-        if (contentY > -300.0f && contentY < 720.0f) {
-            renderCategory(renderer, m_categories[i], contentY, static_cast<int>(i));
+    if (m_showingInstalled) {
+        // Render installed games list
+        renderInstalledSection(renderer, contentY);
+    } else {
+        // Render store categories
+        for (size_t i = 0; i < m_categories.size(); i++) {
+            if (contentY > -300.0f && contentY < 720.0f) {
+                renderCategory(renderer, m_categories[i], contentY, static_cast<int>(i));
+            }
+            contentY += 280.0f;
         }
-        contentY += 280.0f;  // Category height
     }
     
     // Render header on top
@@ -157,8 +200,14 @@ void GamesScreen::renderHeader(Renderer& renderer) {
     renderer.drawRect(Rect(0, 0, 1280, HEADER_HEIGHT), bgColor);
     
     // Title
-    renderer.drawText("游戏", SIDE_PADDING, 20, 34, 
+    std::string title = m_showingInstalled ? "已安装游戏" : "游戏";
+    renderer.drawText(title, SIDE_PADDING, 20, 34, 
                      theme->textPrimaryColor(), FontWeight::Bold);
+    
+    // Toggle hint
+    std::string hint = m_showingInstalled ? "按Y查看商店 · 按X删除" : "按Y查看已安装";
+    renderer.drawText(hint, 1280 - SIDE_PADDING - 200, 30, 14,
+                     theme->textSecondaryColor());
     
     // Separator
     renderer.drawLine(0, HEADER_HEIGHT, 1280, HEADER_HEIGHT, 
@@ -179,7 +228,7 @@ void GamesScreen::renderCategory(Renderer& renderer, const GameCategory& categor
     
     yOffset += 40;
     
-    // Get horizontal scroll for this category
+    // Get horizontal scroll
     float scrollX = 0.0f;
     if (categoryIndex < (int)m_categoryScrollX.size()) {
         scrollX = m_categoryScrollX[categoryIndex];
@@ -196,14 +245,14 @@ void GamesScreen::renderCategory(Renderer& renderer, const GameCategory& categor
         gameX += GAME_CARD_SIZE + CARD_SPACING;
     }
     
-    yOffset += GAME_CARD_SIZE + 60;  // Card + text height
+    yOffset += GAME_CARD_SIZE + 60;
 }
 
 void GamesScreen::renderGameCard(Renderer& renderer, const GameItem& game,
                                   float x, float y, bool isSelected) {
     Theme* theme = m_app->getTheme();
     
-    // Icon placeholder (rounded rect)
+    // Icon placeholder
     Color iconBg = Color::fromHex(0xE5E5EA);
     renderer.drawRoundedRect(Rect(x, y, GAME_CARD_SIZE, GAME_CARD_SIZE), 
                              ICON_RADIUS, iconBg);
@@ -216,7 +265,7 @@ void GamesScreen::renderGameCard(Renderer& renderer, const GameItem& game,
         );
     }
     
-    // Game name (below icon)
+    // Game name
     renderer.drawTextInRect(
         game.name,
         Rect(x, y + GAME_CARD_SIZE + 8, GAME_CARD_SIZE, 36),
@@ -224,61 +273,163 @@ void GamesScreen::renderGameCard(Renderer& renderer, const GameItem& game,
         FontWeight::Semibold, TextAlign::Left, TextVAlign::Top
     );
     
-    // Category/developer
+    // Category
     renderer.drawText(game.category, x, y + GAME_CARD_SIZE + 32, 12,
                      theme->textSecondaryColor());
 }
 
 // =============================================================================
-// Demo Content
+// Installed Games Section
+// =============================================================================
+
+void GamesScreen::renderInstalledSection(Renderer& renderer, float& yOffset) {
+    Theme* theme = m_app->getTheme();
+    
+    if (m_installedGames.empty()) {
+        renderer.drawText("未找到已安装的游戏", 640, 300, 20,
+                         theme->textSecondaryColor(), FontWeight::Regular, TextAlign::Center);
+        return;
+    }
+    
+    float itemHeight = 88.0f;
+    float screenHeight = 720.0f - 70.0f;  // Minus tab bar
+    
+    for (size_t i = 0; i < m_installedGames.size(); i++) {
+        float itemY = yOffset + i * itemHeight;
+        
+        if (itemY > -itemHeight && itemY < screenHeight) {
+            const InstalledGameItem& game = m_installedGames[i];
+            bool isSelected = (static_cast<int>(i) == m_selectedInstalledGame);
+            
+            // Selection highlight
+            if (isSelected) {
+                renderer.drawRect(Rect(0, itemY, 1280, itemHeight),
+                                 theme->getColor("selection"));
+            }
+            
+            // Icon
+            float iconX = SIDE_PADDING;
+            float iconY = itemY + 14;
+            float iconSize = 60.0f;
+            
+            if (game.icon) {
+                renderer.drawTexture(game.icon, Rect(iconX, iconY, iconSize, iconSize));
+            } else {
+                renderer.drawRoundedRect(Rect(iconX, iconY, iconSize, iconSize),
+                                        12, Color::fromHex(0x007AFF));
+            }
+            
+            // Name
+            float textX = iconX + iconSize + 16;
+            renderer.drawText(game.name, textX, itemY + 18, 17,
+                             theme->textPrimaryColor(), FontWeight::Semibold);
+            
+            // Author
+            renderer.drawText(game.author, textX, itemY + 42, 13,
+                             theme->textSecondaryColor());
+            
+            // Version and Title ID
+            char idBuf[32];
+            snprintf(idBuf, sizeof(idBuf), "%016lX", game.titleId);
+            std::string info = "v" + game.version + " · " + idBuf;
+            renderer.drawText(info, textX, itemY + 62, 12,
+                             theme->textTertiaryColor());
+            
+            // Delete button (when selected)
+            if (isSelected) {
+                float btnX = 1280 - SIDE_PADDING - 70;
+                float btnY = itemY + 28;
+                renderer.drawRoundedRect(Rect(btnX, btnY, 60, 32), 16, Color::fromHex(0xFF3B30));
+                renderer.drawTextInRect("删除", Rect(btnX, btnY, 60, 32),
+                                       14, Color(255, 255, 255), FontWeight::Semibold,
+                                       TextAlign::Center, TextVAlign::Middle);
+            }
+            
+            // Separator
+            renderer.drawLine(SIDE_PADDING, itemY + itemHeight - 1,
+                             1280 - SIDE_PADDING, itemY + itemHeight - 1,
+                             theme->separatorColor(), 1);
+        }
+    }
+}
+
+void GamesScreen::loadInstalledGames(Renderer& renderer) {
+    TitleManager& tm = TitleManager::getInstance();
+    if (!tm.init()) return;
+    
+    auto apps = tm.getInstalledApps(renderer.getSDLRenderer());
+    
+    m_installedGames.clear();
+    for (const auto& app : apps) {
+        InstalledGameItem item;
+        item.titleId = app.titleId;
+        item.name = app.name;
+        item.author = app.author;
+        item.version = app.version;
+        item.icon = app.icon;
+        
+        m_installedGames.push_back(item);
+    }
+}
+
+void GamesScreen::deleteSelectedGame() {
+    if (m_selectedInstalledGame < 0 || 
+        m_selectedInstalledGame >= static_cast<int>(m_installedGames.size())) {
+        return;
+    }
+    
+    InstalledGameItem& game = m_installedGames[m_selectedInstalledGame];
+    
+    // Delete using ns service
+    Result rc = nsDeleteApplicationCompletely(game.titleId);
+    
+    if (R_SUCCEEDED(rc)) {
+        // Free texture
+        if (game.icon) {
+            SDL_DestroyTexture(game.icon);
+        }
+        
+        // Remove from list
+        m_installedGames.erase(m_installedGames.begin() + m_selectedInstalledGame);
+        
+        // Adjust selection
+        if (m_selectedInstalledGame >= static_cast<int>(m_installedGames.size())) {
+            m_selectedInstalledGame = static_cast<int>(m_installedGames.size()) - 1;
+        }
+        if (m_selectedInstalledGame < 0) m_selectedInstalledGame = 0;
+    }
+}
+
+// =============================================================================
+// Data Loading (from Backend)
 // =============================================================================
 
 void GamesScreen::loadDemoContent() {
-    // Hot games category
-    GameCategory hotGames;
-    hotGames.title = "热门游戏";
-    hotGames.games = {
-        {"1", "塞尔达传说：旷野之息", "Nintendo", "动作冒险", "", 4.9f, "14.5GB"},
-        {"2", "超级马力欧 奥德赛", "Nintendo", "平台动作", "", 4.8f, "5.7GB"},
-        {"3", "宝可梦 朱/紫", "Game Freak", "角色扮演", "", 4.5f, "7.0GB"},
-        {"4", "斯普拉遁3", "Nintendo", "射击", "", 4.7f, "6.1GB"},
-        {"5", "动物森友会", "Nintendo", "模拟经营", "", 4.9f, "6.8GB"},
-    };
-    m_categories.push_back(hotGames);
-    m_categoryScrollX.push_back(0.0f);
+    StoreManager& store = StoreManager::getInstance();
+    const auto& categories = store.getCategories();
     
-    // New releases
-    GameCategory newGames;
-    newGames.title = "新游戏推荐";
-    newGames.games = {
-        {"6", "塞尔达传说：王国之泪", "Nintendo", "动作冒险", "", 4.9f, "16.2GB"},
-        {"7", "皮克敏4", "Nintendo", "策略", "", 4.6f, "10.3GB"},
-        {"8", "超级马力欧兄弟 惊奇", "Nintendo", "平台动作", "", 4.8f, "4.5GB"},
-        {"9", "火焰纹章 Engage", "Intelligent Sys", "策略RPG", "", 4.4f, "12.0GB"},
-    };
-    m_categories.push_back(newGames);
-    m_categoryScrollX.push_back(0.0f);
-    
-    // Indie games
-    GameCategory indieGames;
-    indieGames.title = "独立游戏精选";
-    indieGames.games = {
-        {"10", "空洞骑士", "Team Cherry", "银河恶魔城", "", 4.9f, "4.1GB"},
-        {"11", "蔚蓝", "Matt Makes Games", "平台动作", "", 4.8f, "1.2GB"},
-        {"12", "哈迪斯", "Supergiant Games", "动作Rogue", "", 4.9f, "5.8GB"},
-        {"13", "星露谷物语", "ConcernedApe", "模拟经营", "", 4.7f, "1.0GB"},
-    };
-    m_categories.push_back(indieGames);
-    m_categoryScrollX.push_back(0.0f);
-    
-    // Action games
-    GameCategory actionGames;
-    actionGames.title = "动作游戏";
-    actionGames.games = {
-        {"14", "猎天使魔女3", "PlatinumGames", "动作", "", 4.5f, "15.0GB"},
-        {"15", "怪物猎人:崛起", "Capcom", "动作RPG", "", 4.7f, "13.3GB"},
-        {"16", "黑暗之魂:重制版", "FromSoftware", "动作RPG", "", 4.6f, "4.0GB"},
-    };
-    m_categories.push_back(actionGames);
-    m_categoryScrollX.push_back(0.0f);
+    for (const auto& storeCategory : categories) {
+        auto entries = store.getEntriesByCategory(storeCategory.id);
+        
+        if (entries.empty()) continue;
+        
+        GameCategory category;
+        category.title = storeCategory.name;
+        
+        for (const StoreEntry* entry : entries) {
+            GameItem item;
+            item.id = entry->id;
+            item.name = entry->name;
+            item.developer = entry->developer;
+            item.category = storeCategory.name;
+            item.iconUrl = entry->iconUrl;
+            item.rating = entry->rating;
+            item.size = entry->getFormattedSize();
+            
+            category.games.push_back(item);
+        }
+        
+        m_categories.push_back(category);
+        m_categoryScrollX.push_back(0.0f);
+    }
 }

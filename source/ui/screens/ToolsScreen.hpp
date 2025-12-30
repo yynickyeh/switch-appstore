@@ -22,10 +22,12 @@ struct ToolItem {
     std::string name;
     std::string developer;
     std::string description;
-    std::string iconUrl;
+    std::string filePath;       // Full path to NRO file (for installed)
+    std::string downloadUrl;    // Download URL (for store items)
     std::string version;
     std::string size;
     bool isInstalled = false;
+    SDL_Texture* iconTexture = nullptr;
 };
 
 // =============================================================================
@@ -53,17 +55,25 @@ private:
     void renderToolItem(Renderer& renderer, const ToolItem& tool, 
                         float y, bool isSelected);
     
-    // Demo content
-    void loadDemoContent();
+    // Content loading
+    void loadStoreTools();           // Load from backend
+    void loadNroTools(Renderer& renderer);  // Load local NROs
+    
+    // Actions
+    void deleteSelectedTool();
+    void downloadSelectedTool();
     
     // Data
-    std::vector<ToolItem> m_tools;
+    std::vector<ToolItem> m_storeTools;     // Tools from store
+    std::vector<ToolItem> m_installedTools; // Local NROs
     
     // State
     int m_selectedIndex = 0;
     float m_scrollY = 0.0f;
     float m_scrollVelocity = 0.0f;
     float m_maxScrollY = 0.0f;
+    bool m_showingInstalled = false;  // Toggle between store/installed
+    bool m_installedLoaded = false;
     
     // Layout constants
     static constexpr float HEADER_HEIGHT = 70.0f;

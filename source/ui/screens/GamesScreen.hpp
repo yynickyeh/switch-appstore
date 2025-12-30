@@ -33,6 +33,17 @@ struct GameItem {
 };
 
 // =============================================================================
+// InstalledGameItem - Data for an installed game
+// =============================================================================
+struct InstalledGameItem {
+    uint64_t titleId;
+    std::string name;
+    std::string author;
+    std::string version;
+    SDL_Texture* icon = nullptr;
+};
+
+// =============================================================================
 // GameCategory - A category section with games
 // =============================================================================
 struct GameCategory {
@@ -85,6 +96,11 @@ private:
                         float x, float y, bool isSelected);
     void loadDemoContent();
     
+    // Installed games
+    void loadInstalledGames(Renderer& renderer);
+    void renderInstalledSection(Renderer& renderer, float& yOffset);
+    void deleteSelectedGame();
+    
     // -------------------------------------------------------------------------
     // Private members
     // -------------------------------------------------------------------------
@@ -102,4 +118,10 @@ private:
     
     // Horizontal scroll per category
     std::vector<float> m_categoryScrollX;
+    
+    // Installed games
+    std::vector<InstalledGameItem> m_installedGames;
+    int m_selectedInstalledGame = 0;
+    bool m_showingInstalled = false;  // Toggle between store/installed view
+    bool m_installedLoaded = false;
 };

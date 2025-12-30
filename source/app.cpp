@@ -9,11 +9,13 @@
 #include "core/Input.hpp"
 #include "ui/Router.hpp"
 #include "ui/Theme.hpp"
-#include "ui/screens/TodayScreen.hpp"
+// TodayScreen removed
 #include "ui/screens/GamesScreen.hpp"
 #include "ui/screens/ToolsScreen.hpp"
 #include "ui/screens/EmulatorsScreen.hpp"
 #include "ui/screens/SearchScreen.hpp"
+#include "store/StoreManager.hpp"
+#include "network/HttpClient.hpp"
 
 #include <switch.h>
 
@@ -58,6 +60,9 @@ App::~App() {
         SDL_DestroyWindow(m_window);
         m_window = nullptr;
     }
+    
+    // Cleanup global curl state
+    HttpClient::cleanup();
 }
 
 // =============================================================================
@@ -65,6 +70,17 @@ App::~App() {
 // =============================================================================
 
 bool App::init() {
+    // -------------------------------------------------------------------------
+    // Initialize networking
+    // -------------------------------------------------------------------------
+    if (!HttpClient::init()) {
+        return false;
+    }
+    
+    // Initialize store manager and fetch catalog
+    StoreManager::getInstance().init("sdmc:/switch/appstore/config.json");
+    StoreManager::getInstance().refresh();  // Fetch store data
+    
     // -------------------------------------------------------------------------
     // Check current display mode (docked vs handheld)
     // -------------------------------------------------------------------------
@@ -138,16 +154,14 @@ bool App::init() {
     // Initialize router (creates TabBar component)
     m_router->init(this);
     
-    // Add all 5 tab screens
-    // Tab 0: Today - Featured content
-    m_router->addTabScreen(std::make_unique<TodayScreen>(this));
-    // Tab 1: Games - Game catalog
+    // Add all 4 tab screens (Today removed)
+    // Tab 0: Games - Game catalog
     m_router->addTabScreen(std::make_unique<GamesScreen>(this));
-    // Tab 2: Tools - Homebrew utilities
+    // Tab 1: Tools - Homebrew utilities
     m_router->addTabScreen(std::make_unique<ToolsScreen>(this));
-    // Tab 3: Emulators - Retro gaming
+    // Tab 2: Emulators - Retro gaming
     m_router->addTabScreen(std::make_unique<EmulatorsScreen>(this));
-    // Tab 4: Search
+    // Tab 3: Search
     m_router->addTabScreen(std::make_unique<SearchScreen>(this));
     
     // -------------------------------------------------------------------------

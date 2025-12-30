@@ -1,10 +1,14 @@
 // =============================================================================
 // Switch App Store - Tools Screen Implementation
 // =============================================================================
+// Displays downloadable tools from store + installed NRO homebrew
+// =============================================================================
 
 #include "ToolsScreen.hpp"
 #include "app.hpp"
 #include "core/Input.hpp"
+#include "core/NroScanner.hpp"
+#include "store/StoreManager.hpp"
 #include "ui/Theme.hpp"
 #include <cmath>
 
@@ -15,10 +19,17 @@
 ToolsScreen::ToolsScreen(App* app)
     : Screen(app)
 {
-    loadDemoContent();
+    loadStoreTools();
 }
 
-ToolsScreen::~ToolsScreen() = default;
+ToolsScreen::~ToolsScreen() {
+    // Cleanup textures
+    for (auto& tool : m_installedTools) {
+        if (tool.iconTexture) {
+            SDL_DestroyTexture(tool.iconTexture);
+        }
+    }
+}
 
 // =============================================================================
 // Lifecycle
@@ -36,7 +47,8 @@ void ToolsScreen::onExit() {
 
 void ToolsScreen::onResolutionChanged(int width, int height, float scale) {
     // Recalculate max scroll
-    m_maxScrollY = std::max(0.0f, m_tools.size() * ITEM_HEIGHT - 
+    auto& tools = m_showingInstalled ? m_installedTools : m_storeTools;
+    m_maxScrollY = std::max(0.0f, tools.size() * ITEM_HEIGHT - 
                             (720.0f - HEADER_HEIGHT - TAB_BAR_HEIGHT));
 }
 
@@ -45,6 +57,28 @@ void ToolsScreen::onResolutionChanged(int width, int height, float scale) {
 // =============================================================================
 
 void ToolsScreen::handleInput(const Input& input) {
+    auto& tools = m_showingInstalled ? m_installedTools : m_storeTools;
+    
+    // Y button to toggle between store and installed view
+    if (input.isPressed(Input::Button::Y)) {
+        m_showingInstalled = !m_showingInstalled;
+        m_selectedIndex = 0;
+        m_scrollY = 0.0f;
+        return;
+    }
+    
+    // X button to delete (when showing installed)
+    if (m_showingInstalled && input.isPressed(Input::Button::X)) {
+        deleteSelectedTool();
+        return;
+    }
+    
+    // A button to download (when showing store)
+    if (!m_showingInstalled && input.isPressed(Input::Button::A)) {
+        downloadSelectedTool();
+        return;
+    }
+    
     // D-pad navigation
     if (input.isPressed(Input::Button::DPadUp)) {
         if (m_selectedIndex > 0) {
@@ -52,14 +86,9 @@ void ToolsScreen::handleInput(const Input& input) {
         }
     }
     if (input.isPressed(Input::Button::DPadDown)) {
-        if (m_selectedIndex < static_cast<int>(m_tools.size()) - 1) {
+        if (m_selectedIndex < static_cast<int>(tools.size()) - 1) {
             m_selectedIndex++;
         }
-    }
-    
-    // A button to download/open
-    if (input.isPressed(Input::Button::A)) {
-        // TODO: Download or open the selected tool
     }
     
     // Analog stick scrolling
@@ -68,7 +97,7 @@ void ToolsScreen::handleInput(const Input& input) {
         m_scrollVelocity = -stickY * 500.0f;
     }
     
-    // Touch scrolling - direct 1:1 mapping
+    // Touch scrolling
     const auto& touch = input.getTouch();
     if (touch.touching) {
         m_scrollY -= touch.deltaY;
@@ -83,7 +112,9 @@ void ToolsScreen::handleInput(const Input& input) {
 // =============================================================================
 
 void ToolsScreen::update(float deltaTime) {
-    // Apply scroll velocity (momentum)
+    auto& tools = m_showingInstalled ? m_installedTools : m_storeTools;
+    
+    // Apply scroll velocity
     if (m_scrollVelocity != 0.0f) {
         m_scrollY += m_scrollVelocity * deltaTime;
         m_scrollVelocity *= 0.92f;
@@ -93,12 +124,14 @@ void ToolsScreen::update(float deltaTime) {
         }
     }
     
-    // Clamp scroll bounds with bounce
+    // Clamp scroll bounds
+    float maxScroll = std::max(0.0f, tools.size() * ITEM_HEIGHT - 
+                               (720.0f - HEADER_HEIGHT - TAB_BAR_HEIGHT));
     if (m_scrollY < 0.0f) {
         m_scrollY *= 0.9f;
     }
-    if (m_scrollY > m_maxScrollY) {
-        m_scrollY = m_maxScrollY + (m_scrollY - m_maxScrollY) * 0.9f;
+    if (m_scrollY > maxScroll) {
+        m_scrollY = maxScroll + (m_scrollY - maxScroll) * 0.9f;
     }
 }
 
@@ -107,6 +140,12 @@ void ToolsScreen::update(float deltaTime) {
 // =============================================================================
 
 void ToolsScreen::render(Renderer& renderer) {
+    // Lazy load installed tools
+    if (!m_installedLoaded) {
+        loadNroTools(renderer);
+        m_installedLoaded = true;
+    }
+    
     renderToolsList(renderer);
     renderHeader(renderer);
 }
@@ -120,11 +159,15 @@ void ToolsScreen::renderHeader(Renderer& renderer) {
     renderer.drawRect(Rect(0, 0, 1280, HEADER_HEIGHT), bgColor);
     
     // Title
-    renderer.drawText("工具", SIDE_PADDING, 20, 34, 
+    std::string title = m_showingInstalled ? "已安装工具" : "工具商店";
+    renderer.drawText(title, SIDE_PADDING, 20, 34, 
                      theme->textPrimaryColor(), FontWeight::Bold);
     
-    // Subtitle
-    renderer.drawText("实用的自制软件工具和系统增强", SIDE_PADDING, 54, 14,
+    // Hint
+    std::string hint = m_showingInstalled ? 
+                       "按Y查看商店 · 按X删除" : 
+                       "按Y查看已安装 · 按A下载";
+    renderer.drawText(hint, 1280 - SIDE_PADDING - 220, 30, 14,
                      theme->textSecondaryColor());
     
     // Separator
@@ -134,18 +177,31 @@ void ToolsScreen::renderHeader(Renderer& renderer) {
 
 void ToolsScreen::renderToolsList(Renderer& renderer) {
     Theme* theme = m_app->getTheme();
-    (void)theme;  // Used in child methods
+    auto& tools = m_showingInstalled ? m_installedTools : m_storeTools;
     
     float contentY = HEADER_HEIGHT - m_scrollY;
     float screenHeight = 720.0f - TAB_BAR_HEIGHT;
     
-    for (size_t i = 0; i < m_tools.size(); i++) {
+    // Show message if empty
+    if (tools.empty()) {
+        std::string msg = m_showingInstalled ? 
+                          "未找到NRO工具" : "无可用工具";
+        renderer.drawText(msg, 640, 300, 20,
+                         theme->textSecondaryColor(), FontWeight::Regular, TextAlign::Center);
+        
+        if (m_showingInstalled) {
+            renderer.drawText("请将.nro文件放入 /switch/ 目录", 640, 330, 14,
+                             theme->textTertiaryColor(), FontWeight::Regular, TextAlign::Center);
+        }
+        return;
+    }
+    
+    for (size_t i = 0; i < tools.size(); i++) {
         float itemY = contentY + i * ITEM_HEIGHT;
         
-        // Only render visible items
         if (itemY > -ITEM_HEIGHT && itemY < screenHeight) {
             bool isSelected = (static_cast<int>(i) == m_selectedIndex);
-            renderToolItem(renderer, m_tools[i], itemY, isSelected);
+            renderToolItem(renderer, tools[i], itemY, isSelected);
         }
     }
 }
@@ -160,71 +216,146 @@ void ToolsScreen::renderToolItem(Renderer& renderer, const ToolItem& tool,
                          theme->getColor("selection"));
     }
     
-    // Icon placeholder (rounded rect)
+    // Icon
     float iconX = SIDE_PADDING;
     float iconY = y + 14;
     float iconSize = 60.0f;
-    renderer.drawRoundedRect(Rect(iconX, iconY, iconSize, iconSize), 
-                            12, Color::fromHex(0x5856D6));  // Purple for tools
     
-    // Tool icon symbol (wrench)
-    renderer.drawCircle(iconX + iconSize/2, iconY + iconSize/2, 12, 
-                       Color(255, 255, 255));
+    if (tool.iconTexture) {
+        renderer.drawTexture(tool.iconTexture, Rect(iconX, iconY, iconSize, iconSize));
+    } else {
+        // Placeholder (purple for tools)
+        renderer.drawRoundedRect(Rect(iconX, iconY, iconSize, iconSize), 
+                                12, Color::fromHex(0x5856D6));
+        renderer.drawCircle(iconX + iconSize/2, iconY + iconSize/2, 12, 
+                           Color(255, 255, 255));
+    }
     
-    // Tool name
+    // Name
     float textX = iconX + iconSize + 16;
     renderer.drawText(tool.name, textX, y + 18, 17,
                      theme->textPrimaryColor(), FontWeight::Semibold);
     
-    // Description
-    renderer.drawText(tool.description, textX, y + 42, 13,
-                     theme->textSecondaryColor());
+    // Developer/description
+    renderer.drawText(tool.developer.empty() ? tool.description : tool.developer, 
+                     textX, y + 42, 13, theme->textSecondaryColor());
     
     // Version and size
-    std::string info = "v" + tool.version + " · " + tool.size;
-    renderer.drawText(info, textX, y + 62, 12,
-                     theme->textTertiaryColor());
+    std::string info = tool.version.empty() ? tool.size : ("v" + tool.version + " · " + tool.size);
+    renderer.drawText(info, textX, y + 62, 12, theme->textTertiaryColor());
     
-    // Download/Open button
-    float btnX = 1280 - SIDE_PADDING - 76;
+    // Action button
+    float btnX = 1280 - SIDE_PADDING - 70;
     float btnY = y + 28;
-    Color btnColor = tool.isInstalled ? 
-                     theme->getColor("button_secondary_bg") : 
-                     theme->primaryColor();
-    renderer.drawRoundedRect(Rect(btnX, btnY, 70, 32), 16, btnColor);
     
-    Color btnTextColor = tool.isInstalled ?
-                         theme->primaryColor() : Color(255, 255, 255);
-    std::string btnText = tool.isInstalled ? "打开" : "获取";
-    renderer.drawTextInRect(btnText, Rect(btnX, btnY, 70, 32),
-                           14, btnTextColor, FontWeight::Semibold,
-                           TextAlign::Center, TextVAlign::Middle);
+    if (m_showingInstalled) {
+        // Delete button (red)
+        if (isSelected) {
+            renderer.drawRoundedRect(Rect(btnX, btnY, 60, 32), 16, Color::fromHex(0xFF3B30));
+            renderer.drawTextInRect("删除", Rect(btnX, btnY, 60, 32),
+                                   14, Color(255, 255, 255), FontWeight::Semibold,
+                                   TextAlign::Center, TextVAlign::Middle);
+        }
+    } else {
+        // Download button (blue)
+        Color btnColor = tool.isInstalled ? 
+                         theme->getColor("button_secondary_bg") : theme->primaryColor();
+        renderer.drawRoundedRect(Rect(btnX, btnY, 60, 32), 16, btnColor);
+        
+        Color btnTextColor = tool.isInstalled ? theme->primaryColor() : Color(255, 255, 255);
+        std::string btnText = tool.isInstalled ? "已安装" : "获取";
+        renderer.drawTextInRect(btnText, Rect(btnX, btnY, 60, 32),
+                               14, btnTextColor, FontWeight::Semibold,
+                               TextAlign::Center, TextVAlign::Middle);
+    }
     
-    // Separator line
+    // Separator
     renderer.drawLine(SIDE_PADDING, y + ITEM_HEIGHT - 1, 
                      1280 - SIDE_PADDING, y + ITEM_HEIGHT - 1,
                      theme->separatorColor(), 1);
 }
 
 // =============================================================================
-// Demo Content
+// Content Loading
 // =============================================================================
 
-void ToolsScreen::loadDemoContent() {
-    m_tools = {
-        {"1", "Goldleaf", "XorTroll", "多功能文件管理器和NSP安装器", "", "0.10.0", "2.3MB", true},
-        {"2", "Tinfoil", "Blawar", "游戏安装器和文件管理", "", "16.0", "8.5MB", true},
-        {"3", "NXDumpTool", "DarkMatterCore", "游戏卡带和数字游戏转储工具", "", "2.0.0", "1.2MB", false},
-        {"4", "JKSV", "J-D-K", "存档管理器 - 备份和还原游戏存档", "", "2024.01", "1.5MB", true},
-        {"5", "Hekate", "CTCaer", "自定义启动引导器", "", "6.0.7", "2.1MB", true},
-        {"6", "Atmosphere", "SciresM", "自制系统固件", "", "1.6.2", "1.8MB", true},
-        {"7", "SysDVR", "exelix11", "视频流工具 - 通过USB/网络串流画面", "", "6.0", "3.2MB", false},
-        {"8", "NX-Shell", "Joel16", "文件管理器 - 浏览和管理SD卡文件", "", "4.0", "856KB", false},
-        {"9", "sys-clk", "retronx-team", "系统超频工具", "", "2.0.0", "128KB", false},
-        {"10", "EdiZon", "WerWolv", "存档编辑器和金手指管理器", "", "3.1.0", "5.6MB", false},
-    };
+void ToolsScreen::loadStoreTools() {
+    StoreManager& store = StoreManager::getInstance();
     
-    // Calculate max scroll
-    m_maxScrollY = std::max(0.0f, m_tools.size() * ITEM_HEIGHT - 
-                            (720.0f - HEADER_HEIGHT - TAB_BAR_HEIGHT));
+    // Get tools category entries
+    auto entries = store.getEntriesByCategory("tools");
+    
+    m_storeTools.clear();
+    for (const StoreEntry* entry : entries) {
+        ToolItem item;
+        item.id = entry->id;
+        item.name = entry->name;
+        item.developer = entry->developer;
+        item.description = entry->description;
+        item.downloadUrl = entry->downloadUrl;
+        item.version = entry->version;
+        item.size = entry->getFormattedSize();
+        item.isInstalled = false;  // TODO: Check if installed
+        
+        m_storeTools.push_back(item);
+    }
+}
+
+void ToolsScreen::loadNroTools(Renderer& renderer) {
+    auto nros = NroScanner::getInstance().scanDirectory("sdmc:/switch", renderer.getSDLRenderer());
+    
+    m_installedTools.clear();
+    for (const auto& nro : nros) {
+        ToolItem item;
+        item.id = nro.path;
+        item.name = nro.name;
+        item.developer = nro.author;
+        item.description = nro.path;
+        item.filePath = nro.path;
+        item.version = nro.version;
+        item.size = nro.size_str;
+        item.isInstalled = true;
+        item.iconTexture = nro.icon;
+        
+        m_installedTools.push_back(item);
+    }
+}
+
+// =============================================================================
+// Actions
+// =============================================================================
+
+void ToolsScreen::deleteSelectedTool() {
+    if (m_selectedIndex < 0 || m_selectedIndex >= static_cast<int>(m_installedTools.size())) {
+        return;
+    }
+    
+    ToolItem& tool = m_installedTools[m_selectedIndex];
+    
+    if (NroScanner::getInstance().deleteNro(tool.filePath)) {
+        if (tool.iconTexture) {
+            SDL_DestroyTexture(tool.iconTexture);
+        }
+        
+        m_installedTools.erase(m_installedTools.begin() + m_selectedIndex);
+        
+        if (m_selectedIndex >= static_cast<int>(m_installedTools.size())) {
+            m_selectedIndex = static_cast<int>(m_installedTools.size()) - 1;
+        }
+        if (m_selectedIndex < 0) m_selectedIndex = 0;
+    }
+}
+
+void ToolsScreen::downloadSelectedTool() {
+    if (m_selectedIndex < 0 || m_selectedIndex >= static_cast<int>(m_storeTools.size())) {
+        return;
+    }
+    
+    ToolItem& tool = m_storeTools[m_selectedIndex];
+    
+    if (tool.downloadUrl.empty()) return;
+    
+    // TODO: Implement actual download using GameInstaller
+    // For now, just mark as "downloading"
+    // GameInstaller::getInstance().downloadGame(tool.downloadUrl, "sdmc:/switch/" + tool.name + ".nro");
 }

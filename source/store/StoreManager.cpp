@@ -3,6 +3,7 @@
 // =============================================================================
 
 #include "StoreManager.hpp"
+#include "json.hpp"
 #include <cstdio>
 #include <ctime>
 #include <algorithm>
@@ -184,16 +185,25 @@ void StoreManager::refresh() {
     m_entries.clear();
     
     bool anySuccess = false;
+    std::string lastError;
     
     for (const auto& source : m_sources) {
         if (!source.enabled) continue;
         
-        std::string apiUrl = source.url + "/api/catalog.json";
+        // -------------------------------------------------------------------------
+        // Construct the API URL. The server uses /api/catalog, not /api/catalog.json
+        // -------------------------------------------------------------------------
+        std::string apiUrl = source.url + "/api/catalog";
         HttpResponse response = m_httpClient->get(apiUrl);
         
         if (response.isSuccess()) {
-            parseCatalog(response.body, source.id);
+            parseCatalog(response.body, source.id, source.url);
             anySuccess = true;
+        } else {
+            lastError = response.error;
+            if (lastError.empty()) {
+                lastError = "HTTP " + std::to_string(response.statusCode);
+            }
         }
     }
     
@@ -201,7 +211,7 @@ void StoreManager::refresh() {
     m_isRefreshing = false;
     
     if (m_onRefreshComplete) {
-        m_onRefreshComplete(anySuccess);
+        m_onRefreshComplete(anySuccess, anySuccess ? "" : lastError);
     }
 }
 
@@ -209,27 +219,92 @@ void StoreManager::refresh() {
 // JSON Parsing (Simplified)
 // =============================================================================
 
-void StoreManager::parseCatalog(const std::string& json, const std::string& sourceId) {
-    // Very simplified JSON array parsing
-    // Real implementation would use proper JSON library
+void StoreManager::parseCatalog(const std::string& jsonStr, const std::string& sourceId, const std::string& baseUrl) {
+    // -------------------------------------------------------------------------
+    // Parse the JSON response from /api/catalog
+    // Expected format: { success: true, data: { games: [...], categories: [...] } }
+    // -------------------------------------------------------------------------
     
-    // Find "entries" array
-    size_t pos = json.find("\"entries\"");
-    if (pos == std::string::npos) return;
+    json::Value root = json::parse(jsonStr);
     
-    // For demo, just add some mock entries
-    // Real implementation would parse the actual JSON
+    // Check for success
+    if (!root["success"].asBool(false)) {
+        return;
+    }
     
-    StoreEntry entry;
-    entry.id = sourceId + "_1";
-    entry.name = "示例游戏";
-    entry.developer = "开发者";
-    entry.category = "games";
-    entry.version = "1.0.0";
-    entry.rating = 4.5f;
-    entry.fileSize = 100 * 1024 * 1024;  // 100 MB
-    m_entries.push_back(entry);
+    // Get the data object
+    const json::Value& data = root["data"];
+    if (data.isNull()) {
+        return;
+    }
+    
+    // Parse games array
+    const json::Value& games = data["games"];
+    if (games.isArray()) {
+        for (size_t i = 0; i < games.size(); ++i) {
+            const json::Value& game = games[i];
+            
+            StoreEntry entry;
+            entry.id = game["id"].asString();
+            entry.name = game["name"].asString();
+            entry.developer = game["developer"].asString();
+            entry.description = game["description"].asString();
+            entry.category = game["category"].asString();
+            entry.version = game["version"].asString();
+            entry.titleId = game["titleId"].asString();
+            // Helper to resolve relative URLs
+            auto resolveUrl = [&](std::string url) {
+                if (url.empty()) return url;
+                if (url.front() == '/') {
+                    return baseUrl + url;
+                }
+                return url;
+            };
+
+            entry.iconUrl = resolveUrl(game["iconUrl"].asString());
+            entry.downloadUrl = resolveUrl(game["downloadUrl"].asString());
+            entry.fileSize = static_cast<size_t>(game["fileSize"].asNumber(0));
+            entry.rating = static_cast<float>(game["rating"].asNumber(0.0));
+            entry.downloadCount = game["downloadCount"].asInt(0);
+            entry.releaseDate = game["releaseDate"].asString();
+            
+            // Parse screenshot URLs array
+            const json::Value& screenshots = game["screenshotUrls"];
+            if (screenshots.isArray()) {
+                for (size_t j = 0; j < screenshots.size(); ++j) {
+                    entry.screenshotUrls.push_back(resolveUrl(screenshots[j].asString()));
+                }
+            }
+            
+            // Parse languages array
+            const json::Value& languages = game["languages"];
+            if (languages.isArray()) {
+                for (size_t j = 0; j < languages.size(); ++j) {
+                    entry.languages.push_back(languages[j].asString());
+                }
+            }
+            
+            m_entries.push_back(entry);
+        }
+    }
+    
+    // Parse categories array
+    const json::Value& categories = data["categories"];
+    if (categories.isArray()) {
+        m_categories.clear();
+        for (size_t i = 0; i < categories.size(); ++i) {
+            const json::Value& cat = categories[i];
+            
+            StoreCategory category;
+            category.id = cat["id"].asString();
+            category.name = cat["name"].asString();
+            category.iconName = cat["icon"].asString();
+            
+            m_categories.push_back(category);
+        }
+    }
 }
+
 
 // =============================================================================
 // Configuration
@@ -270,10 +345,14 @@ void StoreManager::saveConfig() {
 }
 
 void StoreManager::addDefaultSource() {
+    // -------------------------------------------------------------------------
+    // Add default source - points to local development server
+    // In production, this could be loaded from config or set by user
+    // -------------------------------------------------------------------------
     StoreSource defaultSource;
-    defaultSource.id = "homebrew_switch";
-    defaultSource.name = "Switch Homebrew App Store";
-    defaultSource.url = "https://switchbru.com/appstore";
+    defaultSource.id = "local_dev_server";
+    defaultSource.name = "Local Development Server";
+    defaultSource.url = "http://124.156.197.94:5090";  // Local Express server
     defaultSource.enabled = true;
     defaultSource.priority = 100;
     

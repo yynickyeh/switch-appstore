@@ -136,7 +136,7 @@ public:
     // Callbacks
     // -------------------------------------------------------------------------
     
-    using RefreshCallback = std::function<void(bool success)>;
+    using RefreshCallback = std::function<void(bool success, const std::string& error)>;
     void setOnRefreshComplete(RefreshCallback callback) { m_onRefreshComplete = callback; }
     
 private:
@@ -151,7 +151,7 @@ private:
     void saveConfig();
     
     // Parse catalog JSON
-    void parseCatalog(const std::string& json, const std::string& sourceId);
+    void parseCatalog(const std::string& json, const std::string& sourceId, const std::string& baseUrl);
     
     // Add default source
     void addDefaultSource();

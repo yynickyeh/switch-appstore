@@ -6,6 +6,7 @@
 #include "app.hpp"
 #include "core/Input.hpp"
 #include "ui/Theme.hpp"
+#include "store/StoreManager.hpp"
 #include <algorithm>
 #include <switch.h>  // For swkbd (software keyboard)
 
@@ -339,43 +340,62 @@ void SearchScreen::performSearch(const std::string& query) {
     m_searchResults.clear();
     m_selectedResultIndex = 0;
     
-    // Demo: filter recommendations by query
-    for (const auto& game : m_recommendations) {
-        // Simple contains check
-        if (game.name.find(query) != std::string::npos ||
-            game.category.find(query) != std::string::npos) {
-            m_searchResults.push_back(game);
-        }
-    }
+    // -------------------------------------------------------------------------
+    // Search using StoreManager (backend data only)
+    // No fallback local search - requires backend connection
+    // -------------------------------------------------------------------------
+    StoreManager& store = StoreManager::getInstance();
+    auto results = store.search(query);
     
-    // If no results, show all
-    if (m_searchResults.empty()) {
-        m_searchResults = m_recommendations;
+    // Convert StoreEntry results to GameItem items
+    for (const StoreEntry* entry : results) {
+        GameItem result;
+        result.id = entry->id;
+        result.name = entry->name;
+        result.developer = entry->developer;
+        result.category = entry->category;
+        result.iconUrl = entry->iconUrl;
+        result.rating = entry->rating;
+        result.size = entry->getFormattedSize();
+        
+        m_searchResults.push_back(result);
     }
 }
 
 // =============================================================================
-// Demo Content
+// Data Loading (from Backend)
 // =============================================================================
 
 void SearchScreen::loadDemoContent() {
-    // Hot keywords
+    // -------------------------------------------------------------------------
+    // Hot keywords - could be loaded from backend API in the future
+    // -------------------------------------------------------------------------
     m_hotKeywords = {
         "马里奥", "塞尔达", "宝可梦", "星之卡比",
         "动物森友会", "喷射战士", "火焰纹章", "异度神剑"
     };
     
-    // Recommendations
-    m_recommendations = {
-        {"1", "塞尔达传说：旷野之息", "Nintendo", "动作冒险", "", 4.9f, "14.5GB"},
-        {"2", "超级马力欧 奥德赛", "Nintendo", "平台动作", "", 4.8f, "5.7GB"},
-        {"3", "宝可梦 朱/紫", "Game Freak", "角色扮演", "", 4.5f, "7.0GB"},
-        {"4", "斯普拉遁3", "Nintendo", "射击", "", 4.7f, "6.1GB"},
-        {"5", "动物森友会", "Nintendo", "模拟经营", "", 4.9f, "6.8GB"},
-        {"6", "星之卡比 探索发现", "HAL Laboratory", "平台动作", "", 4.7f, "5.8GB"},
-        {"7", "异度神剑3", "Monolith Soft", "角色扮演", "", 4.6f, "15.0GB"},
-    };
+    // -------------------------------------------------------------------------
+    // Load recommendations from StoreManager (top rated entries)
+    // No fallback demo data - requires backend connection
+    // -------------------------------------------------------------------------
+    StoreManager& store = StoreManager::getInstance();
+    auto featured = store.getFeaturedEntries(7);
+    
+    for (const StoreEntry* entry : featured) {
+        GameItem rec;
+        rec.id = entry->id;
+        rec.name = entry->name;
+        rec.developer = entry->developer;
+        rec.category = entry->category;
+        rec.iconUrl = entry->iconUrl;
+        rec.rating = entry->rating;
+        rec.size = entry->getFormattedSize();
+        
+        m_recommendations.push_back(rec);
+    }
 }
+
 
 // =============================================================================
 // Software Keyboard

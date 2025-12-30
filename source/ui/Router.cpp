@@ -27,8 +27,7 @@ void Router::init(App* app) {
     // Create the TabBar component
     m_tabBar = std::make_unique<TabBar>(app);
     
-    // Configure tabs (Switch homebrew store style)
-    m_tabBar->addTab("today", "Today");
+    // Configure tabs (Switch homebrew store style - 4 tabs)
     m_tabBar->addTab("games", "游戏");
     m_tabBar->addTab("tools", "工具");
     m_tabBar->addTab("emulators", "模拟器");
