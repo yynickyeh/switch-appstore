@@ -148,6 +148,7 @@ void SearchScreen::update(float deltaTime) {
 
 void SearchScreen::render(Renderer& renderer) {
     Theme* theme = m_app->getTheme();
+    (void)theme;  // Used in sub-render functions via m_app
     
     // Search bar at top
     renderSearchBar(renderer);

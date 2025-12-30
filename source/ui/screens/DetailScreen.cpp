@@ -124,6 +124,7 @@ void DetailScreen::update(float deltaTime) {
 
 void DetailScreen::render(Renderer& renderer) {
     Theme* theme = m_app->getTheme();
+    (void)theme;  // Used in sub-render functions via m_app
     
     float yOffset = NAV_BAR_HEIGHT + 20 - m_scrollY;
     

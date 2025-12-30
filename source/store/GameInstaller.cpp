@@ -221,6 +221,7 @@ bool GameInstaller::getNroInfo(const std::string& path,
     // Get file size
     fseek(file, 0, SEEK_END);
     long fileSize = ftell(file);
+    (void)fileSize;  // Reserved for future NRO asset parsing
     
     // Read NRO header to find asset section
     fseek(file, 0, SEEK_SET);

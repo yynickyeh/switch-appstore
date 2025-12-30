@@ -263,8 +263,14 @@ void Transition::renderFade(Renderer& renderer, Theme& theme) {
     // Render from screen fading out
     if (m_fromScreen) {
         // Note: proper implementation would use render targets for opacity
-        // Simplified: draw at full opacity
+        // Simplified: draw at full opacity, easedT controls blend
         m_fromScreen->render(renderer);
+        
+        // Overlay to simulate fade-out based on easedT
+        if (easedT > 0.0f) {
+            Color fadeOverlay(0, 0, 0, static_cast<Uint8>(easedT * 100));
+            renderer.drawRect(Rect(0, 0, m_screenWidth, m_screenHeight), fadeOverlay);
+        }
     }
     
     // Render to screen fading in on top

@@ -229,6 +229,7 @@ void Router::render(Renderer& renderer) {
         // Calculate eased progress (ease-out cubic)
         float t = m_transitionProgress;
         float easedT = 1.0f - (1.0f - t) * (1.0f - t) * (1.0f - t);
+        (void)easedT;  // Reserved for future animation implementation
         
         if (m_transitionIsPush) {
             // Push: current screen slides left, new screen slides in from right
